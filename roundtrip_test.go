@@ -10,11 +10,11 @@ import (
 	"github.com/sohelmia/sharp-go/format"
 )
 
-// fixturePath resolves a fixture from the upstream sharp test/fixtures dir.
-// The go/ subdir lives at sharp/go, so fixtures are at ../test/fixtures.
+// fixturePath resolves a fixture from the vendored test/fixtures dir at the
+// module root (go test runs with CWD = the package's dir = module root).
 func fixturePath(t *testing.T, name string) string {
 	t.Helper()
-	abs, err := filepath.Abs(filepath.Join("..", "test", "fixtures", name))
+	abs, err := filepath.Abs(filepath.Join("test", "fixtures", name))
 	if err != nil {
 		t.Fatalf("abs: %v", err)
 	}
@@ -36,7 +36,7 @@ func readFixture(t *testing.T, name string) []byte {
 // readFixtureBytes reads a fixture from disk without requiring a *testing.T.
 // Returns an error if the file is missing; benchmarks call Skip on err.
 func readFixtureBytes(name string) ([]byte, error) {
-	abs, err := filepath.Abs(filepath.Join("..", "test", "fixtures", name))
+	abs, err := filepath.Abs(filepath.Join("test", "fixtures", name))
 	if err != nil {
 		return nil, err
 	}

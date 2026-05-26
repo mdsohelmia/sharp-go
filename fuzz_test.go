@@ -12,7 +12,7 @@ import (
 
 // seedFixture loads a fixture from disk; used to seed fuzz corpora.
 func seedFixture(name string) []byte {
-	b, err := os.ReadFile(filepath.Join("..", "test", "fixtures", name))
+	b, err := os.ReadFile(filepath.Join("test", "fixtures", name))
 	if err != nil {
 		return nil
 	}

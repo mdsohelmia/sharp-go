@@ -17,7 +17,7 @@ func loadAnimatedFixture(t *testing.T) []byte {
 		"Crash_test.gif",
 	}
 	for _, name := range candidates {
-		p := filepath.Join("..", "test", "fixtures", name)
+		p := filepath.Join("test", "fixtures", name)
 		if _, err := os.Stat(p); err == nil {
 			b, _ := os.ReadFile(p)
 			return b
