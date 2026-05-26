@@ -16,8 +16,9 @@ data, info, err := sharp.FromFile("input.jpg").
 
 ## Status
 
-Pre-1.0. ~99% sharp API parity. 113 tests passing on macOS arm64 + libvips
-8.18.2. Public API may shift before v1.0.
+Pre-1.0. ~99% sharp API parity. Full test suite (incl. an all-fixtures format
+sweep) passing on macOS arm64 + libvips 8.18.2. Public API may shift before
+v1.0.
 
 ## Design
 
@@ -314,9 +315,77 @@ sharp-go/
     log.go              g_log handler + slog routing
     error.go            vips_error_buffer pump
 
+  cmd/sharpgo/          CLI (resize/convert/metadata/composite/info)
   cmd/sharpgo-doctor/   env probe (libvips version + format support)
+  examples/             proxy (flagship), thumbnail, format-convert, watermark
 ```
+
+## Command-line tools
+
+```sh
+go install github.com/sohelmia/sharp-go/cmd/sharpgo@latest
+go install github.com/sohelmia/sharp-go/cmd/sharpgo-doctor@latest
+```
+
+`sharpgo` is a thin CLI over the library:
+
+```sh
+sharpgo resize    -w 800 -h 600 -fit cover in.jpg out.webp
+sharpgo convert   -q 80 in.png out.avif
+sharpgo metadata  in.jpg                      # JSON
+sharpgo composite -overlay logo.png -gravity southeast in.jpg out.jpg
+sharpgo info                                  # libvips capabilities
+sharpgo help
+```
+
+`sharpgo-doctor` prints the detected libvips version and per-format load/save
+support — run it first when diagnosing a build.
+
+## Examples
+
+Runnable programs under `examples/`:
+
+| dir | what it shows |
+|-----|---------------|
+| `proxy` | flagship HTTP image-optimization proxy (resize + AVIF/WebP, origin + output disk cache) |
+| `thumbnail` | shrink-on-load thumbnailing |
+| `format-convert` | batch format conversion |
+| `watermark` | compositing a logo overlay |
+
+```sh
+make proxy                       # run the proxy on :3003 (PROXY_PORT to override)
+go run ./examples/thumbnail
+```
+
+## Building & development
+
+A `Makefile` wraps the common workflows (run `make help` for the full list):
+
+```sh
+make build        # go build ./...
+make test         # full suite (fixture tests skip if test/fixtures is absent)
+make test-race    # race detector
+make bench        # benchmarks
+make cover        # coverage profile + summary
+make vet          # go vet
+make fmt          # gofmt -w .
+make check        # vet + race tests
+make doctor       # libvips capability probe
+make install      # install the sharpgo + sharpgo-doctor CLIs
+make deps-help    # libvips install command per platform
+```
+
+Override the Go toolchain with `make GO=go1.24 test`.
+
+### Test fixtures
+
+The fixture-based tests read images from `test/fixtures/` (sourced from the
+upstream sharp repo). The helper **skips** any test whose fixture is missing,
+so `go test ./...` passes on a fresh clone without them — but to run the full
+suite, populate `test/fixtures/` with the upstream sharp fixtures.
 
 ## License
 
-Apache-2.0 (matches upstream sharp).
+Apache-2.0 (matches upstream sharp) — see [LICENSE](LICENSE). Portions of
+`internal/vips` are adapted from [imgproxy](https://github.com/imgproxy/imgproxy)
+(also Apache-2.0); attribution is in [NOTICE](NOTICE).
