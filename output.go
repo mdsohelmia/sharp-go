@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/sohelmia/sharp-go/format"
@@ -63,6 +64,12 @@ func (im *Image) ToWriter(ctx context.Context, w io.Writer) (Info, error) {
 // streamTo runs the pipeline up to the encode step, then routes encoded
 // bytes through a VipsTarget into w.
 func (im *Image) streamTo(ctx context.Context, w io.Writer) (Info, error) {
+	// Pin to one OS thread for the whole pipeline: libvips' error buffer is
+	// thread-local, so the op that fails and the lastError() that reads it
+	// must run on the same thread, else a goroutine reschedule between cgo
+	// calls would surface a stale or empty message.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	if im.opts.timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, im.opts.timeout)
@@ -71,10 +78,11 @@ func (im *Image) streamTo(ctx context.Context, w io.Writer) (Info, error) {
 	if err := ctx.Err(); err != nil {
 		return Info{}, err
 	}
-	vimg, err := buildPipelineImage(ctx, im)
+	vimg, stop, err := buildPipelineImage(ctx, im)
 	if err != nil {
 		return Info{}, err
 	}
+	defer stop()
 	if im.opts.withMetadata != nil || im.opts.withExif != nil ||
 		im.opts.withICCProfile != nil || im.opts.withXmp != nil {
 		vimg, err = applyWithMetadata(vimg, &im.opts)
@@ -144,9 +152,10 @@ func formatFromExt(path string) formatID {
 // fusing the decode and resize steps so shrink-on-load engages (JPEG DCT
 // scale, PNG/WebP/HEIF native subsample). The Resize and (optionally) the
 // sRGB transform are marked consumed before applyAllOps sees them.
-func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, error) {
+func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, func(), error) {
+	noStop := func() {}
 	if err := vips.InitError(); err != nil {
-		return nil, err
+		return nil, noStop, err
 	}
 
 	// Local copy: applyAllOps may mutate ops as the fused path consumes
@@ -169,18 +178,18 @@ func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, error) {
 	case im.in.raw != nil:
 		buf, rerr := readInput(im.in)
 		if rerr != nil {
-			return nil, rerr
+			return nil, noStop, rerr
 		}
 		r := im.in.raw
 		vimg, err = vips.LoadRawBuffer(buf, r.Width, r.Height, r.Channels, mapDepth(r.Depth))
 
 	case im.in.reader != nil:
-		vimg, err = loadFromReader(im.in.reader, &opts)
+		vimg, err = loadFromReader(im.in.reader)
 
 	case im.in.pages != 0 || im.in.page != 0:
 		buf, rerr := readInput(im.in)
 		if rerr != nil {
-			return nil, rerr
+			return nil, noStop, rerr
 		}
 		pages := im.in.pages
 		if pages == 0 {
@@ -191,7 +200,7 @@ func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, error) {
 	default:
 		buf, rerr := readInput(im.in)
 		if rerr != nil {
-			return nil, rerr
+			return nil, noStop, rerr
 		}
 		if canFuseThumbnail(&opts) {
 			vimg, err = loadFusedThumbnail(buf, &opts)
@@ -200,25 +209,29 @@ func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, error) {
 		}
 	}
 	if err != nil {
-		return nil, err
-	}
-
-	// ctx watcher: on cancellation, flag source image as killed so any
-	// libvips op running downstream aborts at the next checkpoint.
-	// context.AfterFunc registers a callback in the ctx's existing
-	// cancellation infrastructure — no goroutine, no chan, no per-call
-	// allocation for context.Background().
-	if ctx.Done() != nil {
-		src := vimg
-		stop := context.AfterFunc(ctx, func() { src.Kill() })
-		defer stop()
+		return nil, noStop, err
 	}
 
 	vimg, err = applyAllOps(vimg, &opts)
 	if err != nil {
-		return nil, err
+		return nil, noStop, err
 	}
-	return vimg, nil
+
+	// ctx watcher: on cancellation, flag the final image as killed so the
+	// in-flight libvips computation aborts at the next checkpoint. Because
+	// libvips is lazy, essentially all the pixel work happens in the encode
+	// (the sink) performed by the CALLER after this function returns — so the
+	// watcher must outlive buildPipelineImage. We return its stop func and let
+	// the caller release it once encoding finishes. context.AfterFunc reuses
+	// ctx's existing cancellation machinery: no goroutine, no channel, and
+	// nothing registered for an uncancellable context.Background().
+	stop := noStop
+	if ctx.Done() != nil {
+		final := vimg
+		cancel := context.AfterFunc(ctx, func() { final.Kill() })
+		stop = func() { cancel() }
+	}
+	return vimg, stop, nil
 }
 
 // canFuseThumbnail reports whether the pipeline can route through
@@ -243,59 +256,36 @@ func canFuseThumbnail(o *pipelineOpts) bool {
 	return true
 }
 
-// loadFromReader handles streaming input. When the resize step can be fused
-// and both dimensions are known, vips_thumbnail_source is used; otherwise
-// the source is fully decoded into memory via vips_image_new_from_source.
-// libvips copies pixel data before returning, so the reader can be released
-// once this function returns.
-func loadFromReader(r io.Reader, opts *pipelineOpts) (*vips.Image, error) {
+// loadFromReader handles streaming input. The source is fully decoded into
+// libvips-managed memory within this call (vips_image_copy_memory), so the
+// reader — and any closer the caller drops when buildPipelineImage returns —
+// is never read lazily during the later encode step. Resize runs post-decode
+// via applyAllOps.
+//
+// Shrink-on-load fusion is intentionally NOT used for reader inputs: a fused
+// thumbnail is a lazy pipeline that would read from the stream at encode time,
+// after the caller's closer (e.g. an HTTP response body) has already been
+// closed. Buffer and file inputs keep fusion (see loadFusedThumbnail) because
+// their backing bytes have no closer and their lifetime is bound to the image.
+func loadFromReader(r io.Reader) (*vips.Image, error) {
 	src, err := vips.NewSource(r)
 	if err != nil {
 		return nil, err
 	}
 	defer src.Close()
-
-	// Fused thumbnail-source requires both target dims to skip header probe.
-	// One-dim resize over a non-seekable stream is hard to fuse cheaply; we
-	// fall through to LoadSource + applyResize which still benefits from
-	// streaming the input but does a full decode.
-	fuse := canFuseThumbnail(opts) &&
-		opts.resize.Width > 0 && opts.resize.Height > 0
-
-	if fuse {
-		rz := opts.resize
-		p := resizeThumbnailParams(rz, rz.Width, rz.Height)
-		if opts.ensureSRGB {
-			p.ExportProfile = "srgb"
-		}
-		if opts.autoOrient {
-			p.NoRotate = false
-		}
-		out, err := vips.ThumbnailSource(src, p)
-		if err != nil {
-			return nil, err
-		}
-		opts.resize = nil
-		if opts.ensureSRGB {
-			opts.ensureSRGB = false
-		}
-		if opts.autoOrient {
-			opts.autoOrient = false
-		}
-		return applyResizeContainPadding(out, rz)
-	}
 	return vips.LoadSource(src)
 }
 
-// loadFusedThumbnail performs vips_thumbnail_buffer on buf using opts.resize.
-// On success, opts.resize is cleared so applyAllOps does not re-run the
-// resize. If opts.ensureSRGB is set, the export profile is hoisted into the
-// thumbnail call and ensureSRGB cleared as well.
+// loadFusedThumbnail fuses load + resize over buf via a streaming Source
+// (vips_thumbnail_source) so shrink-on-load engages while buf's lifetime is
+// bound to the resulting image. On success, opts.resize is cleared so
+// applyAllOps does not re-run the resize. If opts.ensureSRGB is set, the
+// export profile is hoisted into the thumbnail call and ensureSRGB cleared.
 func loadFusedThumbnail(buf []byte, opts *pipelineOpts) (*vips.Image, error) {
 	r := opts.resize
-	// vips_thumbnail_buffer requires width to be known. When only height is
-	// supplied (or neither), read the header lazily to compute the missing
-	// dimension — this is far cheaper than a full decode.
+	// The fused thumbnail needs a known width. When only height is supplied
+	// (or neither), read the header lazily to compute the missing dimension —
+	// far cheaper than a full decode.
 	width, height := r.Width, r.Height
 	if width <= 0 || height <= 0 {
 		hdr, err := vips.LoadBufferLazy(buf)
@@ -348,10 +338,15 @@ func loadFusedThumbnail(buf []byte, opts *pipelineOpts) (*vips.Image, error) {
 // Applies all recorded ops in sharp's pipeline order and encodes to the
 // requested format.
 func execute(ctx context.Context, im *Image) ([]byte, Info, error) {
-	vimg, err := buildPipelineImage(ctx, im)
+	// See streamTo: pin to one OS thread so libvips' thread-local error buffer
+	// is read on the thread that wrote it.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	vimg, stop, err := buildPipelineImage(ctx, im)
 	if err != nil {
 		return nil, Info{}, err
 	}
+	defer stop()
 
 	if im.opts.withMetadata != nil || im.opts.withExif != nil ||
 		im.opts.withICCProfile != nil || im.opts.withXmp != nil {

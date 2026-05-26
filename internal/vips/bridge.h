@@ -6,7 +6,9 @@
 #ifndef SHARPGO_BRIDGE_H
 #define SHARPGO_BRIDGE_H
 
+#include <stdint.h>
 #include <vips/vips.h>
+#include <vips/connection.h>
 
 // Load any supported image from an in-memory buffer with auto format detection.
 // The pixel data is fully decoded and copied to libvips-managed memory so the
@@ -101,22 +103,6 @@ int sharpgo_thumbnail_image(
     int width, int height,
     int kernel, int size, int crop,
     int no_rotate);
-
-// Fused load + thumbnail from a memory buffer using vips_thumbnail_buffer.
-// Activates shrink-on-load (JPEG DCT scale, PNG/WebP/HEIF native subsample)
-// so libvips never materialises the full source image — the canonical hot
-// path for resize-dominant workloads.
-//
-// import_profile / export_profile may be NULL/"" to skip ICC conversion.
-// intent: VipsIntent enum (VIPS_INTENT_RELATIVE etc.); 0 = default.
-int sharpgo_thumbnail_buffer(
-    const void *buf, size_t len,
-    int width, int height,
-    int size, int crop, int no_rotate,
-    const char *import_profile,
-    const char *export_profile,
-    int intent,
-    VipsImage **out);
 
 // Embed (pad) an image into a new w x h canvas at offset (x, y), filling the
 // background with the supplied RGBA bytes.
@@ -445,24 +431,29 @@ VipsTargetCustom *sharpgo_target_new(long long id);
 // Drop the target reference.
 void sharpgo_target_unref(VipsTargetCustom *target);
 
-// Create a VipsSourceCustom whose "read" (and optional "seek") signals call
-// back into Go via sharpgoSourceReadTrampoline / sharpgoSourceSeekTrampoline.
-// seekable: 0 = read-only stream, 1 = seek trampoline also connected.
-VipsSourceCustom *sharpgo_source_new(long long id, int seekable);
+// Create a VipsSource subclass backed by a Go io.Reader. The reader is
+// referenced through a runtime/cgo.Handle (passed as `handle`) and released
+// in the GObject dispose handler — so the source (and its Go reader) lives
+// exactly as long as any VipsImage that references it, with no global table.
+// The returned source has refcount 1 (the caller's creation reference).
+VipsSource *sharpgo_source_new(uintptr_t handle);
 
-// Drop the source reference.
-void sharpgo_source_unref(VipsSourceCustom *src);
+// Drop the caller's creation reference. After a load/thumbnail call the
+// resulting image holds its own reference, so the source survives until the
+// image (and its lazy pipeline) is freed.
+void sharpgo_source_unref(VipsSource *src);
 
 // Load any supported image from a streaming source with auto format
 // detection. The decoded pixel data is materialised into libvips-managed
 // memory before return; the Go reader may be released afterwards.
-int sharpgo_load_source(VipsSourceCustom *src, VipsImage **out);
+int sharpgo_load_source(VipsSource *src, VipsImage **out);
 
-// Fused load + thumbnail directly from a VipsSourceCustom. Activates
-// shrink-on-load like sharpgo_thumbnail_buffer but consumes bytes from the
-// streaming source rather than a contiguous buffer.
+// Fused load + thumbnail directly from a VipsSource. Activates shrink-on-load
+// like sharpgo_thumbnail_buffer but consumes bytes from the streaming source.
+// The result is a lazy pipeline that reads from src on demand, so src must
+// outlive it — guaranteed because the image holds a reference to src.
 int sharpgo_thumbnail_source(
-    VipsSourceCustom *src,
+    VipsSource *src,
     int width, int height,
     int size, int crop, int no_rotate,
     const char *import_profile,

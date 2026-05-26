@@ -2,6 +2,7 @@ package sharp
 
 import (
 	"context"
+	"runtime"
 
 	"github.com/sohelmia/sharp-go/internal/vips"
 )
@@ -23,6 +24,8 @@ type ChannelStats struct {
 
 // Stats computes per-channel statistics. Pixels are decoded fully.
 func (im *Image) Stats(ctx context.Context) (Stats, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	if im.err != nil {
 		return Stats{}, im.err
 	}

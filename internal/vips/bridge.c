@@ -9,7 +9,7 @@ int sharpgo_load_buffer(const void *buf, size_t len, VipsImage **out) {
 
 	// Force a full decode into libvips-managed memory so the caller's
 	// buffer can be released immediately. Trades shrink-on-load for safe
-	// lifetime; the Resize path uses vips_thumbnail_buffer directly.
+	// lifetime; the Resize path fuses via vips_thumbnail_source instead.
 	VipsImage *mem = vips_image_copy_memory(im);
 	g_object_unref(im);
 	if (mem == NULL) return -1;
@@ -202,51 +202,6 @@ int sharpgo_thumbnail_image(
 
 	return vips_thumbnail_image(
 		in, out, width,
-		"height", height,
-		"size", (VipsSize)size,
-		"crop", (VipsInteresting)crop,
-		"no_rotate", no_rotate ? TRUE : FALSE,
-		NULL);
-}
-
-int sharpgo_thumbnail_buffer(
-    const void *buf, size_t len,
-    int width, int height,
-    int size, int crop, int no_rotate,
-    const char *import_profile,
-    const char *export_profile,
-    int intent,
-    VipsImage **out) {
-
-	// Optional ICC profile args; libvips skips the conversion when NULL.
-	const char *ip = (import_profile && import_profile[0]) ? import_profile : NULL;
-	const char *ep = (export_profile && export_profile[0]) ? export_profile : NULL;
-
-	if (ip != NULL && ep != NULL) {
-		return vips_thumbnail_buffer(
-			buf, len, out, width,
-			"height", height,
-			"size", (VipsSize)size,
-			"crop", (VipsInteresting)crop,
-			"no_rotate", no_rotate ? TRUE : FALSE,
-			"import_profile", ip,
-			"export_profile", ep,
-			"intent", (VipsIntent)intent,
-			NULL);
-	}
-	if (ep != NULL) {
-		return vips_thumbnail_buffer(
-			buf, len, out, width,
-			"height", height,
-			"size", (VipsSize)size,
-			"crop", (VipsInteresting)crop,
-			"no_rotate", no_rotate ? TRUE : FALSE,
-			"export_profile", ep,
-			"intent", (VipsIntent)intent,
-			NULL);
-	}
-	return vips_thumbnail_buffer(
-		buf, len, out, width,
 		"height", height,
 		"size", (VipsSize)size,
 		"crop", (VipsInteresting)crop,
@@ -1015,42 +970,82 @@ void sharpgo_target_unref(VipsTargetCustom *target) {
 	if (target) g_object_unref(target);
 }
 
-// Forward decls: Go-side trampolines for streaming-input read/seek.
-extern long long sharpgoSourceReadTrampoline(long long id, void *buf, long long len);
-extern long long sharpgoSourceSeekTrampoline(long long id, long long offset, int whence);
+// --- streaming input source backed by a Go io.Reader ---------------------
+//
+// A VipsSource subclass that pulls bytes from a Go reader referenced via a
+// runtime/cgo.Handle. Adapted from imgproxy's vips/source.{c,h,go}
+// (Apache-2.0); see NOTICE. The handle is released in dispose, so the Go
+// reader lives exactly as long as any VipsImage referencing this source —
+// no global registry/mutex, and the reader is guaranteed to outlive lazy
+// (shrink-on-load) pipelines that read from it on demand.
 
-static gint64 sharpgo_source_read_cb(VipsSourceCustom *src,
-    void *buf, gint64 len, void *user_data) {
-	(void)src;
-	long long id = (long long)(intptr_t)user_data;
-	return (gint64)sharpgoSourceReadTrampoline(id, buf, (long long)len);
+extern long long sharpgoSourceRead(uintptr_t handle, void *buf, long long len);
+extern long long sharpgoSourceSeek(uintptr_t handle, long long offset, int whence);
+extern void      sharpgoSourceClose(uintptr_t handle);
+
+typedef struct _SharpgoSource {
+	VipsSource parent;
+	uintptr_t handle;
+} SharpgoSource;
+
+typedef struct _SharpgoSourceClass {
+	VipsSourceClass parent_class;
+} SharpgoSourceClass;
+
+GType sharpgo_source_get_type(void);
+#define SHARPGO_TYPE_SOURCE (sharpgo_source_get_type())
+G_DEFINE_TYPE(SharpgoSource, sharpgo_source, VIPS_TYPE_SOURCE)
+
+static gint64 sharpgo_source_read_vfunc(VipsSource *source, void *buffer, size_t length) {
+	SharpgoSource *self = (SharpgoSource *)source;
+	return (gint64)sharpgoSourceRead(self->handle, buffer, (long long)length);
 }
 
-static gint64 sharpgo_source_seek_cb(VipsSourceCustom *src,
-    gint64 offset, int whence, void *user_data) {
-	(void)src;
-	long long id = (long long)(intptr_t)user_data;
-	return (gint64)sharpgoSourceSeekTrampoline(id, (long long)offset, whence);
+static gint64 sharpgo_source_seek_vfunc(VipsSource *source, gint64 offset, int whence) {
+	SharpgoSource *self = (SharpgoSource *)source;
+	return (gint64)sharpgoSourceSeek(self->handle, (long long)offset, whence);
 }
 
-VipsSourceCustom *sharpgo_source_new(long long id, int seekable) {
-	VipsSourceCustom *s = vips_source_custom_new();
-	if (!s) return NULL;
-	g_signal_connect(s, "read", G_CALLBACK(sharpgo_source_read_cb),
-		(gpointer)(intptr_t)id);
-	if (seekable) {
-		g_signal_connect(s, "seek", G_CALLBACK(sharpgo_source_seek_cb),
-			(gpointer)(intptr_t)id);
+static void sharpgo_source_dispose(GObject *gobject) {
+	SharpgoSource *self = (SharpgoSource *)gobject;
+	if (self->handle) {
+		sharpgoSourceClose(self->handle);
+		self->handle = 0;
 	}
-	return s;
+	G_OBJECT_CLASS(sharpgo_source_parent_class)->dispose(gobject);
 }
 
-void sharpgo_source_unref(VipsSourceCustom *src) {
+static void sharpgo_source_class_init(SharpgoSourceClass *klass) {
+	GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
+	VipsObjectClass *object_class = VIPS_OBJECT_CLASS(klass);
+	VipsSourceClass *source_class = VIPS_SOURCE_CLASS(klass);
+
+	object_class->nickname = "sharpgo_source";
+	object_class->description = "sharp-go input source";
+
+	gobject_class->dispose = sharpgo_source_dispose;
+
+	source_class->read = sharpgo_source_read_vfunc;
+	source_class->seek = sharpgo_source_seek_vfunc;
+}
+
+static void sharpgo_source_init(SharpgoSource *source) {
+	(void)source;
+}
+
+VipsSource *sharpgo_source_new(uintptr_t handle) {
+	SharpgoSource *s = g_object_new(SHARPGO_TYPE_SOURCE, NULL);
+	if (!s) return NULL;
+	s->handle = handle;
+	return (VipsSource *)s;
+}
+
+void sharpgo_source_unref(VipsSource *src) {
 	if (src) g_object_unref(src);
 }
 
-int sharpgo_load_source(VipsSourceCustom *src, VipsImage **out) {
-	VipsImage *im = vips_image_new_from_source((VipsSource *)src, "", NULL);
+int sharpgo_load_source(VipsSource *src, VipsImage **out) {
+	VipsImage *im = vips_image_new_from_source(src, "", NULL);
 	if (im == NULL) return -1;
 	VipsImage *mem = vips_image_copy_memory(im);
 	g_object_unref(im);
@@ -1060,7 +1055,7 @@ int sharpgo_load_source(VipsSourceCustom *src, VipsImage **out) {
 }
 
 int sharpgo_thumbnail_source(
-    VipsSourceCustom *src,
+    VipsSource *src,
     int width, int height,
     int size, int crop, int no_rotate,
     const char *import_profile,
@@ -1073,7 +1068,7 @@ int sharpgo_thumbnail_source(
 
 	if (ip != NULL && ep != NULL) {
 		return vips_thumbnail_source(
-			(VipsSource *)src, out, width,
+			src, out, width,
 			"height", height,
 			"size", (VipsSize)size,
 			"crop", (VipsInteresting)crop,
@@ -1085,7 +1080,7 @@ int sharpgo_thumbnail_source(
 	}
 	if (ep != NULL) {
 		return vips_thumbnail_source(
-			(VipsSource *)src, out, width,
+			src, out, width,
 			"height", height,
 			"size", (VipsSize)size,
 			"crop", (VipsInteresting)crop,

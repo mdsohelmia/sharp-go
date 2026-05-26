@@ -3,6 +3,7 @@ package sharp
 import (
 	"context"
 	"math"
+	"runtime"
 
 	"github.com/sohelmia/sharp-go/internal/vips"
 )
@@ -31,6 +32,8 @@ type Metadata struct {
 
 // Metadata reads header information without decoding pixel data.
 func (im *Image) Metadata(ctx context.Context) (Metadata, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	if im.err != nil {
 		return Metadata{}, im.err
 	}

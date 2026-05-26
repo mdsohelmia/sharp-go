@@ -1,0 +1,24 @@
+sharp-go
+Copyright the sharp-go authors
+
+This product includes software developed by third parties.
+
+------------------------------------------------------------------------
+imgproxy
+------------------------------------------------------------------------
+
+The streaming input source in internal/vips (the SharpgoSource VipsSource
+subclass backed by a runtime/cgo.Handle — see internal/vips/source.go and the
+"streaming input source" section of internal/vips/bridge.c) is adapted from
+imgproxy's vips/source.{c,h,go}.
+
+    imgproxy — https://github.com/imgproxy/imgproxy
+    Copyright (c) imgproxy authors
+    Licensed under the Apache License, Version 2.0.
+
+Changes from the original: renamed types/symbols to the sharp-go convention,
+folded the C source into internal/vips/bridge.c, added per-reader read-error
+tracking, and integrated it with sharp-go's deferred-pipeline Image model.
+
+A copy of the Apache License, Version 2.0 is available at:
+    https://www.apache.org/licenses/LICENSE-2.0

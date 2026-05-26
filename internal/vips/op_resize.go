@@ -9,6 +9,7 @@ package vips
 import "C"
 
 import (
+	"bytes"
 	"errors"
 	"unsafe"
 )
@@ -90,41 +91,28 @@ func ThumbnailImage(im *Image, p ThumbnailParams) (*Image, error) {
 	return wrap(out), nil
 }
 
-// ThumbnailBuffer fuses load + resize into a single vips_thumbnail_buffer
-// call. The decoder uses format-native shrink-on-load (JPEG DCT scale,
-// PNG/WebP/HEIF native subsample) so libvips never materialises the full
-// source — large source / small target workloads see 3-5× speedup and ~10×
-// peak RSS reduction versus LoadBuffer + ThumbnailImage.
+// ThumbnailBuffer fuses load + resize using format-native shrink-on-load
+// (JPEG DCT scale, PNG/WebP/HEIF native subsample) so libvips never
+// materialises the full source — large source / small target workloads see
+// 3-5× speedup and ~10× peak RSS reduction versus LoadBuffer + ThumbnailImage.
 //
 // The Kernel field is ignored: libvips' thumbnail pipeline uses lanczos3
-// internally and does not expose a kernel knob. The buffer must remain valid
-// for the duration of the call; libvips copies pixel data before return.
+// internally and does not expose a kernel knob.
+//
+// The buffer is wrapped in a streaming Source (rather than handed to libvips
+// as a raw pointer) so the resulting lazy pipeline reads from Go-owned memory
+// whose lifetime is bound to the image — buf must NOT be freed early, and the
+// Source machinery guarantees it stays alive until the image is collected.
 func ThumbnailBuffer(buf []byte, p ThumbnailParams) (*Image, error) {
 	if len(buf) == 0 {
 		return nil, errors.New("vips: empty input buffer")
 	}
-	var cImport, cExport *C.char
-	if p.ImportProfile != "" {
-		cImport = C.CString(p.ImportProfile)
-		defer C.free(unsafe.Pointer(cImport))
+	src, err := NewSource(bytes.NewReader(buf))
+	if err != nil {
+		return nil, err
 	}
-	if p.ExportProfile != "" {
-		cExport = C.CString(p.ExportProfile)
-		defer C.free(unsafe.Pointer(cExport))
-	}
-	var out *C.VipsImage
-	rc := C.sharpgo_thumbnail_buffer(
-		unsafe.Pointer(&buf[0]),
-		C.size_t(len(buf)),
-		C.int(p.Width), C.int(p.Height),
-		C.int(p.Size), C.int(p.Crop), boolToC(p.NoRotate),
-		cImport, cExport, C.int(p.Intent),
-		&out,
-	)
-	if rc != 0 {
-		return nil, lastError()
-	}
-	return wrap(out), nil
+	defer src.Close()
+	return ThumbnailSource(src, p)
 }
 
 // EmbedParams are the inputs to Embed.
