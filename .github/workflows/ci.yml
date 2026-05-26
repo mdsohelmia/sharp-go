@@ -7,8 +7,8 @@ on:
 
 env:
   CGO_ENABLED: '1'
-  # Use the runner's preinstalled Go; go.mod's `go 1.24` makes the toolchain
-  # auto-download 1.24 on first use. Avoids actions/setup-go, whose action
+  # Use the runner's preinstalled Go; go.mod's `go 1.26.2` makes the toolchain
+  # auto-download 1.26.2 on first use. Avoids actions/setup-go, whose action
   # archive is currently 404ing on GitHub's codeload.
   GOTOOLCHAIN: auto
 
