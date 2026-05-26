@@ -23,7 +23,7 @@ import (
 
 const (
 	minMajor = 8
-	minMinor = 15
+	minMinor = 16
 )
 
 var (

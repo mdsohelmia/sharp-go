@@ -22,7 +22,9 @@ dogfoods this library — improvements land here first).
 - The public packages (root, `format/`) must never `import "C"`. All cgo is
   confined to `internal/vips`, guarded by `//go:build cgo` (with a `!cgo` stub
   that returns a clear init error).
-- Minimum libvips **8.15** — checked at init in `cgo.go`, fails fast.
+- Minimum libvips **8.16** — checked at init in `cgo.go`, fails fast. (8.15
+  lacks the `smart-deblock`/`keep-duplicate-frames` save options and an AVIF
+  encoder this code relies on.)
 
 ## Architecture
 

@@ -38,7 +38,7 @@ v1.0.
 ## Prerequisites
 
 - Go ≥ 1.26.2
-- libvips ≥ 8.15 with development headers
+- libvips ≥ 8.16 with development headers (AVIF + recent WebP/GIF options)
 - `pkg-config`
 
 ```sh
