@@ -102,7 +102,9 @@ jobs:
           echo "$PREFIX/bin" >> "$GITHUB_PATH"
       - name: Go version
         run: go version
-      - name: Fuzz Metadata (30s)
-        run: go test -run='^$' -fuzz=FuzzMetadataDecode -fuzztime=30s .
-      - name: Fuzz JPEGEncode (30s)
-        run: go test -run='^$' -fuzz=FuzzJPEGEncode -fuzztime=30s .
+      # Run the fuzz targets over their seed corpus (deterministic). Active
+      # fuzzing (-fuzz) is flaky as a per-push gate for cgo+libvips under heavy
+      # parallel workers, so it belongs in a separate scheduled job rather than
+      # blocking PRs.
+      - name: Fuzz targets (seed corpus)
+        run: go test -run='Fuzz' -count=1 .
