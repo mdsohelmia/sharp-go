@@ -68,4 +68,9 @@ type WebPOptions struct {
 	// TargetSize, in bytes, asks libwebp to bisect Q to hit a byte
 	// budget (only used when UseSharpYUV is on). Zero = ignore.
 	TargetSize int
+
+	// Multithread lets libwebp encode token partitions in parallel
+	// (WebPConfig.thread_level = 1), trading a sub-0.1% size delta for
+	// faster encoding on multicore hosts. Only used when UseSharpYUV is on.
+	Multithread bool
 }

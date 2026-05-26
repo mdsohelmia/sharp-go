@@ -802,6 +802,7 @@ func webpSharpYUVParamsFrom(o format.WebPOptions) vips.WebPSharpYUVParams {
 		TargetSize:  o.TargetSize,
 		Passes:      o.Passes,
 		Preset:      mapWebPPreset(o.Preset),
+		Multithread: o.Multithread,
 	}
 }
 

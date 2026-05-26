@@ -97,9 +97,9 @@ type PNGParams struct {
 	Compression int  // 0-9; default 6
 	Progressive bool // interlace
 	Palette     bool
-	Quality     int  // 1-100, palette only; default 100
-	Effort      int  // 1-10; default 7
-	Bitdepth    int  // 0=auto, 1/2/4/8/16
+	Quality     int // 1-100, palette only; default 100
+	Effort      int // 1-10; default 7
+	Bitdepth    int // 0=auto, 1/2/4/8/16
 }
 
 // WebPParams mirrors the subset of vips_webpsave_buffer options that sharp
@@ -107,16 +107,16 @@ type PNGParams struct {
 // use_sharp_yuv, autofilter, sns_strength, target_psnr, and segments —
 // knobs libvips's webpsave wrapper hides.
 type WebPParams struct {
-	Quality        int  // 1-100; default 80
-	AlphaQuality   int  // 0-100; default 100
+	Quality        int // 1-100; default 80
+	AlphaQuality   int // 0-100; default 100
 	Lossless       bool
 	NearLossless   bool
 	SmartSubsample bool
 	SmartDeblock   bool
-	Passes         int  // 1-10; 0 = libwebp default
+	Passes         int // 1-10; 0 = libwebp default
 	Preset         WebPPreset
-	Effort         int  // 0-6; default 4
-	Loop           int  // animated; 0=infinite
+	Effort         int // 0-6; default 4
+	Loop           int // animated; 0=infinite
 	MinSize        bool
 	Mixed          bool
 }
@@ -125,16 +125,17 @@ type WebPParams struct {
 // All zero-valued fields fall through to libwebp's internal defaults so a
 // minimal {Quality, Effort, UseSharpYUV} call works.
 type WebPSharpYUVParams struct {
-	Quality      int        // 1-100
-	Effort       int        // 0-6 (libwebp "method")
-	UseSharpYUV  bool       // sharper RGB→YUV conversion (libvips can't set)
-	AutoFilter   bool       // auto-tune deblocking filter
-	SNSStrength  int        // 0-100; 0 leaves libwebp default (50)
-	TargetSize   int        // exact byte budget; 0 = ignore
-	TargetPSNR   float32    // dB; 0 = ignore (target_size wins if both set)
-	Passes       int        // 1-10; 0 = libwebp default
-	Preset       WebPPreset // libwebp WebPPreset enum
-	Segments     int        // 1-4; 0 = libwebp default (4)
+	Quality     int        // 1-100
+	Effort      int        // 0-6 (libwebp "method")
+	UseSharpYUV bool       // sharper RGB→YUV conversion (libvips can't set)
+	AutoFilter  bool       // auto-tune deblocking filter
+	SNSStrength int        // 0-100; 0 leaves libwebp default (50)
+	TargetSize  int        // exact byte budget; 0 = ignore
+	TargetPSNR  float32    // dB; 0 = ignore (target_size wins if both set)
+	Passes      int        // 1-10; 0 = libwebp default
+	Preset      WebPPreset // libwebp WebPPreset enum
+	Segments    int        // 1-4; 0 = libwebp default (4)
+	Multithread bool       // thread_level=1: parallel token-partition encode
 }
 
 // WebPPreset names libwebp's content-type presets. Values match
@@ -153,14 +154,14 @@ const (
 // GIFParams mirrors the subset of vips_gifsave_buffer options that sharp
 // exposes.
 type GIFParams struct {
-	Dither              float64 // 0.0-1.0
-	Effort              int     // 1-10; default 7
-	Bitdepth            int     // 1-8; default 8
-	InterframeMaxError  int     // 0-32
-	InterpaletteMaxError int    // 0-256; default 3
-	Interlace           bool
-	Reuse               bool
-	KeepDuplicateFrames bool
+	Dither               float64 // 0.0-1.0
+	Effort               int     // 1-10; default 7
+	Bitdepth             int     // 1-8; default 8
+	InterframeMaxError   int     // 0-32
+	InterpaletteMaxError int     // 0-256; default 3
+	Interlace            bool
+	Reuse                bool
+	KeepDuplicateFrames  bool
 }
 
 // SaveJPEG encodes the image as JPEG and returns the bytes.
@@ -226,6 +227,7 @@ func SaveWebPSharpYUV(im *Image, p WebPSharpYUVParams) ([]byte, error) {
 		C.int(p.Passes),
 		C.int(p.Preset),
 		C.int(p.Segments),
+		boolToC(p.Multithread),
 	)
 	if rc != 0 {
 		return nil, lastError()
@@ -264,9 +266,9 @@ func SaveWebP(im *Image, p WebPParams) ([]byte, error) {
 // TIFFParams mirrors the subset of vips_tiffsave_buffer options that sharp
 // exposes.
 type TIFFParams struct {
-	Compression int  // VipsForeignTiffCompression enum
-	Quality     int  // JPEG-in-TIFF Q
-	Predictor   int  // VipsForeignTiffPredictor enum
+	Compression int // VipsForeignTiffCompression enum
+	Quality     int // JPEG-in-TIFF Q
+	Predictor   int // VipsForeignTiffPredictor enum
 	Tile        bool
 	TileWidth   int
 	TileHeight  int
@@ -278,11 +280,11 @@ type TIFFParams struct {
 // HEIFParams mirrors the subset of vips_heifsave_buffer options that sharp
 // exposes.
 type HEIFParams struct {
-	Compression       int  // VipsForeignHeifCompression (HEVC/AVC/JPEG/AV1)
-	Quality           int
-	Lossless          bool
-	Effort            int
-	Bitdepth          int
+	Compression        int // VipsForeignHeifCompression (HEVC/AVC/JPEG/AV1)
+	Quality            int
+	Lossless           bool
+	Effort             int
+	Bitdepth           int
 	ChromaSubsample444 bool
 }
 
@@ -341,15 +343,15 @@ const (
 
 // TIFFCompressionNone etc enumerate libvips' VipsForeignTiffCompression.
 const (
-	TIFFCompressionNone     = 0
-	TIFFCompressionJPEG     = 1
-	TIFFCompressionDeflate  = 2
-	TIFFCompressionPackbits = 3
+	TIFFCompressionNone      = 0
+	TIFFCompressionJPEG      = 1
+	TIFFCompressionDeflate   = 2
+	TIFFCompressionPackbits  = 3
 	TIFFCompressionCCITTFAX4 = 4
-	TIFFCompressionLZW      = 5
-	TIFFCompressionWebP     = 6
-	TIFFCompressionZSTD     = 7
-	TIFFCompressionJP2K     = 8
+	TIFFCompressionLZW       = 5
+	TIFFCompressionWebP      = 6
+	TIFFCompressionZSTD      = 7
+	TIFFCompressionJP2K      = 8
 )
 
 // JXLParams mirrors the subset of vips_jxlsave_buffer options that sharp
@@ -366,10 +368,10 @@ type JXLParams struct {
 // JP2Params mirrors the subset of vips_jp2ksave_buffer options that sharp
 // exposes.
 type JP2Params struct {
-	Quality            int  // 1-100; default 48
+	Quality            int // 1-100; default 48
 	Lossless           bool
-	TileWidth          int  // default 512
-	TileHeight         int  // default 512
+	TileWidth          int // default 512
+	TileHeight         int // default 512
 	ChromaSubsample444 bool
 }
 

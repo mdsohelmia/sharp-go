@@ -76,7 +76,8 @@ int sharpgo_webpsave_sharp_yuv(
     float target_psnr,
     int passes,
     int preset,
-    int segments);
+    int segments,
+    int multithread);
 
 // Encode an image to a GIF in-memory buffer.
 int sharpgo_gifsave_buffer(
