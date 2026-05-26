@@ -148,14 +148,30 @@ sharp.FromBytes(pdf).Page(2)           // load specific page
 
 ```go
 .Composite([]sharp.CompositeLayer{
+    // Source: exactly one of Input ([]byte), InputPath (string), or Prepared.
     {Input: logoBytes, Gravity: sharp.GravitySouthEast, Blend: sharp.BlendOver},
-    {Input: pattern,  Tile: true,                       Blend: sharp.BlendMultiply},
+    {InputPath: "pattern.png", Tile: true,              Blend: sharp.BlendMultiply},
+    // Explicit offset instead of Gravity:
+    {Input: badge, Top: 12, Left: 12, HasOffset: true},
 })
 ```
 
 25 blend modes (Over/In/Out/Atop/Dest*/Xor/Add/Multiply/Screen/Overlay/Darken/
 Lighten/Colour-Dodge/Colour-Burn/Hard-Light/Soft-Light/Difference/Exclusion/...),
 9 gravity anchors + Tile + explicit Top/Left offset.
+
+For a watermark reused across many images, decode it once with
+`PrepareOverlay` and pass it via `Prepared` — this skips re-decoding (and the
+alpha upgrade) on every composite:
+
+```go
+wm, err := sharp.PrepareOverlay(logoBytes)
+defer wm.Close()
+// ... per image:
+img.Composite([]sharp.CompositeLayer{
+    {Prepared: wm, Gravity: sharp.GravitySouthEast},
+})
+```
 
 ### Metadata
 
@@ -184,16 +200,16 @@ Without any Keep/With call, all metadata is stripped at encode (sharp default).
 ### Output
 
 ```go
-.JPEG(format.JPEGOptions{Quality: 80, MozJPEG: true})
+.JPEG(format.JPEGOptions{Quality: 80, MozJPEG: true})  // MozJPEG = trellis + progressive + optimised scans
 .PNG(format.PNGOptions{Compression: 9, Palette: true})
-.WebP(format.WebPOptions{Quality: 80, Effort: 6})
-.AVIF(format.AVIFOptions{Quality: 50})
+.WebP(format.WebPOptions{Quality: 80, Effort: 4})      // Effort 0 (fast) – 6 (small); default 4
+.AVIF(format.AVIFOptions{Quality: 50, Effort: 4})      // Effort 0 (fast) – 9 (small); default 4
 .HEIF(format.HEIFOptions{Compression: format.HEIFCompressionHEVC})
 .GIF(format.GIFOptions{})
 .TIFF(format.TIFFOptions{Compression: format.TIFFCompressionLZW, Tile: true})
 .JXL(format.JXLOptions{Quality: 90})
 .JP2(format.JP2Options{Quality: 50})
-.Raw(format.RawOptions{Depth: format.RawDepthUchar})
+.Raw(format.RawOptions{Depth: format.RawDepthUchar})   // uncompressed packed pixels
 
 // Dispatcher for dynamic format choice
 .ToFormat(sharp.FormatWebP, format.WebPOptions{Quality: 80})
@@ -205,6 +221,30 @@ info, err            := pipeline.ToFile(ctx, "out.jpg")    // infers format from
 info, err            := pipeline.ToWriter(ctx, w)
 info, err            := pipeline.ToTiles(ctx, "pyramid", sharp.TileOptions{Layout: sharp.TileLayoutDZ})
 ```
+
+### Advanced WebP (libwebp-direct)
+
+Setting `UseSharpYUV` routes encoding through a libwebp-direct path that exposes
+knobs `vips_webpsave` hides — sharper chroma and tighter byte budgets at the
+same quality. On photographic content this measures ~0.10 butteraugli / +2
+ssimulacra2 better than the default WebP saver at equal size.
+
+```go
+.WebP(format.WebPOptions{
+    Quality:     75,
+    Effort:      4,      // 0 (fast) – 6 (small)
+    UseSharpYUV: true,   // sharper RGB→YUV; enables the knobs below
+    Multithread: true,   // parallel token-partition encode (~17% faster, sub-0.1% size)
+    Preset:      "photo", // "" | picture | photo | drawing | icon | text
+    AutoFilter:  true,    // auto-tune the deblocking filter
+    SNSStrength: 50,      // spatial-noise-shaping 0–100 (0 = libwebp default)
+    TargetSize:  0,       // bytes; >0 makes libwebp bisect Q to hit a budget
+    SmartSubsample: true, // higher-quality chroma subsampling
+})
+```
+
+Without `UseSharpYUV`, `.WebP` uses libvips' standard `webpsave` and the
+sharp-only fields above are ignored.
 
 ### Stats
 
