@@ -785,32 +785,17 @@ int sharpgo_rawsave_buffer(
 	VipsImage *cast = NULL;
 	if (vips_cast(in, &cast, (VipsBandFormat)band_format, NULL) != 0) return -1;
 
-	// Use vips_rawsave_target (not the deprecated vips_rawsave_buffer, which
-	// some libvips builds — e.g. distro 8.15 — don't export) to write raw
-	// pixel data with no container/header into an in-memory target.
-	VipsTarget *target = vips_target_new_to_memory();
-	if (target == NULL) {
-		g_object_unref(cast);
-		return -1;
-	}
-	int rc = vips_rawsave_target(cast, target, NULL);
+	// vips_image_write_to_memory returns the tightly-packed raw pixel bytes
+	// (no container/header) — identical to what rawsave would emit. It is core
+	// libvips (present in every 8.x), unlike vips_rawsave_buffer/_target which
+	// some distro builds (e.g. 8.15) don't export. The buffer is g_malloc'd;
+	// the Go side frees it with g_free.
+	size_t total = 0;
+	void *data = vips_image_write_to_memory(cast, &total);
 	g_object_unref(cast);
-	if (rc != 0) {
-		g_object_unref(target);
-		return -1;
-	}
-
-	VipsBlob *blob = NULL;
-	g_object_get(target, "blob", &blob, NULL);
-	g_object_unref(target);
-	if (blob == NULL) return -1;
-
-	size_t blen = 0;
-	const void *data = vips_blob_get(blob, &blen);
-	*buf = g_malloc(blen);
-	memcpy(*buf, data, blen);
-	*len = blen;
-	vips_area_unref((VipsArea *)blob);
+	if (data == NULL) return -1;
+	*buf = data;
+	*len = total;
 	return 0;
 }
 
