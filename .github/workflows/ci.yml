@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['go/**']
+  pull_request:
+    paths: ['go/**']
+
+defaults:
+  run:
+    working-directory: go
+
+env:
+  CGO_ENABLED: '1'
+
+jobs:
+  test-linux:
+    name: Linux ${{ matrix.libvips }} / Go ${{ matrix.go }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.24']
+        libvips: ['8.15', '8.16']
+        include:
+          # Latest libvips on a Go release-candidate matrix slot.
+          - go: '1.24'
+            libvips: '8.17'
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install libvips
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libvips-dev pkg-config build-essential
+
+      - name: Check libvips version
+        run: |
+          pkg-config --modversion vips
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go/go.sum
+
+      - name: Doctor
+        run: go run ./cmd/sharpgo-doctor
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -count=1 -race ./...
+
+      - name: Test (without race)
+        if: matrix.libvips == '8.17'
+        run: go test -count=1 -bench=. -benchtime=1s -run='^$' .
+
+  test-macos:
+    name: macOS arm64 / Go ${{ matrix.go }}
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.24']
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install libvips
+        run: brew install vips pkg-config
+
+      - name: Check libvips version
+        run: pkg-config --modversion vips
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go/go.sum
+
+      - name: Doctor
+        run: go run ./cmd/sharpgo-doctor
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -count=1 -race ./...
+
+  fuzz-smoke:
+    name: Fuzz smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y libvips-dev pkg-config
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: go/go.sum
+      - name: Fuzz Metadata (30s)
+        run: go test -run='^$' -fuzz=FuzzMetadataDecode -fuzztime=30s .
+      - name: Fuzz JPEGEncode (30s)
+        run: go test -run='^$' -fuzz=FuzzJPEGEncode -fuzztime=30s .
