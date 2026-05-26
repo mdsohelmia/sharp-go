@@ -86,25 +86,29 @@ func main() {
 		log.Fatalf("invalid ORIGIN_CACHE_TTL: %v", err)
 	}
 
+	// Clear cache dirs on startup by default; set CACHE_CLEAR=off to persist
+	// across restarts.
+	clearCache := strings.ToLower(envOr("CACHE_CLEAR", "on")) != "off"
+
 	if strings.ToLower(envOr("ORIGIN_CACHE", "on")) != "off" {
-		c, err := newOriginCache(originDir, ttl)
+		c, err := newOriginCache(originDir, ttl, clearCache)
 		if err != nil {
 			log.Fatalf("origin cache: %v", err)
 		}
 		origCache = c
-		log.Printf("origin cache: dir=%s ttl=%s", originDir, ttl)
+		log.Printf("origin cache: dir=%s ttl=%s cleared=%t", originDir, ttl, clearCache)
 	} else {
 		log.Printf("origin cache: disabled")
 	}
 
 	if strings.ToLower(envOr("OUTPUT_CACHE", "on")) != "off" {
 		dir := envOr("OUTPUT_CACHE_DIR", originDir+"-opt")
-		c, err := newOriginCache(dir, ttl)
+		c, err := newOriginCache(dir, ttl, clearCache)
 		if err != nil {
 			log.Fatalf("output cache: %v", err)
 		}
 		outCache = c
-		log.Printf("output cache: dir=%s ttl=%s", dir, ttl)
+		log.Printf("output cache: dir=%s ttl=%s cleared=%t", dir, ttl, clearCache)
 	} else {
 		log.Printf("output cache: disabled")
 	}
@@ -1416,9 +1420,16 @@ type cachedOrigin struct {
 	Status      int
 }
 
-func newOriginCache(dir string, ttl time.Duration) (*originCache, error) {
+func newOriginCache(dir string, ttl time.Duration, clear bool) (*originCache, error) {
 	if dir == "" {
 		return nil, errors.New("cache: empty dir")
+	}
+	// Drop any entries left by a previous run so a restart never serves
+	// stale bytes (e.g. after changing encode presets/effort).
+	if clear {
+		if err := os.RemoveAll(dir); err != nil {
+			return nil, err
+		}
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
