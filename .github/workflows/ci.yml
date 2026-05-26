@@ -28,10 +28,13 @@ jobs:
       # properties this codebase uses; ubuntu's apt libvips (8.15) lacks them.
       - name: Install libvips (Homebrew)
         run: |
+          # Homebrew is preinstalled on the runner but not on PATH by default.
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install vips pkg-config
           PREFIX="$(brew --prefix)"
           echo "PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$PREFIX/lib" >> "$GITHUB_ENV"
+          echo "$PREFIX/bin" >> "$GITHUB_PATH"
 
       - name: Check libvips version
         run: pkg-config --modversion vips
@@ -90,10 +93,13 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install libvips (Homebrew)
         run: |
+          # Homebrew is preinstalled on the runner but not on PATH by default.
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install vips pkg-config
           PREFIX="$(brew --prefix)"
           echo "PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$PREFIX/lib" >> "$GITHUB_ENV"
+          echo "$PREFIX/bin" >> "$GITHUB_PATH"
       - name: Go version
         run: go version
       - name: Fuzz Metadata (30s)
