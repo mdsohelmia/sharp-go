@@ -62,8 +62,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install libvips
-        run: brew install vips pkg-config
+      - name: Install libvips + Go
+        run: brew install vips pkg-config go
 
       - name: Check libvips version
         run: pkg-config --modversion vips

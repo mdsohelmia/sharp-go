@@ -785,10 +785,33 @@ int sharpgo_rawsave_buffer(
 	VipsImage *cast = NULL;
 	if (vips_cast(in, &cast, (VipsBandFormat)band_format, NULL) != 0) return -1;
 
-	// vips_rawsave_buffer outputs raw pixel data without container/header.
-	int rc = vips_rawsave_buffer(cast, buf, len, NULL);
+	// Use vips_rawsave_target (not the deprecated vips_rawsave_buffer, which
+	// some libvips builds — e.g. distro 8.15 — don't export) to write raw
+	// pixel data with no container/header into an in-memory target.
+	VipsTarget *target = vips_target_new_to_memory();
+	if (target == NULL) {
+		g_object_unref(cast);
+		return -1;
+	}
+	int rc = vips_rawsave_target(cast, target, NULL);
 	g_object_unref(cast);
-	return rc;
+	if (rc != 0) {
+		g_object_unref(target);
+		return -1;
+	}
+
+	VipsBlob *blob = NULL;
+	g_object_get(target, "blob", &blob, NULL);
+	g_object_unref(target);
+	if (blob == NULL) return -1;
+
+	size_t blen = 0;
+	const void *data = vips_blob_get(blob, &blen);
+	*buf = g_malloc(blen);
+	memcpy(*buf, data, blen);
+	*len = blen;
+	vips_area_unref((VipsArea *)blob);
+	return 0;
 }
 
 int sharpgo_jxlsave_buffer(
