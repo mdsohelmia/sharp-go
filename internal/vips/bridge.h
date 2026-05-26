@@ -184,6 +184,13 @@ double sharpgo_get_yres(VipsImage *in);
 int sharpgo_get_blob(VipsImage *in, const char *name,
     const void **data, size_t *len);
 
+// Returns 1 if the image carries an embedded ICC profile, 0 otherwise.
+int sharpgo_has_embedded_icc(VipsImage *in);
+
+// Returns 1 if the embedded ICC profile is the standard sRGB IEC61966-2.1
+// profile (a conversion to sRGB is then an identity and can be skipped).
+int sharpgo_icc_is_srgb(VipsImage *in);
+
 // Gaussian blur with the given sigma. Sigma <= 0.3 is treated as "off".
 int sharpgo_gaussblur(VipsImage *in, VipsImage **out, double sigma);
 

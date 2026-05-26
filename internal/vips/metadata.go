@@ -60,6 +60,17 @@ func (im *Image) HasAlpha() bool {
 	return C.sharpgo_has_alpha(im.ptr) != 0
 }
 
+// HasICCProfile reports whether the image carries an embedded ICC profile.
+func (im *Image) HasICCProfile() bool {
+	return C.sharpgo_has_embedded_icc(im.ptr) != 0
+}
+
+// IsSRGBProfile reports whether the embedded ICC profile is the standard
+// sRGB IEC61966-2.1 profile (so an sRGB conversion would be an identity).
+func (im *Image) IsSRGBProfile() bool {
+	return C.sharpgo_icc_is_srgb(im.ptr) != 0
+}
+
 // Interpretation returns the libvips colourspace interpretation enum value.
 func (im *Image) Interpretation() Interpretation {
 	return Interpretation(C.sharpgo_get_interpretation(im.ptr))

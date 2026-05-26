@@ -360,6 +360,21 @@ func execute(ctx context.Context, im *Image) ([]byte, Info, error) {
 	return encodePipeline(vimg, im)
 }
 
+// needsSRGBConversion reports whether converting im to sRGB would actually
+// change pixels. It lets EnsureSRGB skip the (full-image, lcms) ICC transform
+// for images that are already sRGB — the common case for web images — while
+// still converting wide-gamut (Adobe RGB, Display P3) and non-RGB (CMYK,
+// greyscale, 16-bit) sources.
+func needsSRGBConversion(im *vips.Image) bool {
+	if im.HasICCProfile() {
+		// Embedded profile present: it's a no-op only if that profile is the
+		// standard sRGB profile; otherwise (Adobe RGB, P3, …) convert.
+		return !im.IsSRGBProfile()
+	}
+	// No embedded profile: skip only when already tagged sRGB.
+	return im.Interpretation() != vips.InterpretationSRGB
+}
+
 // applyAllOps runs every recorded operation in sharp's pipeline order against
 // vimg, returning the final post-ops image. Operations consumed by the fused
 // load path (resize / ensureSRGB) are skipped when the caller cleared them.
@@ -368,7 +383,7 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 	// ICC transform to sRGB happens first so all subsequent ops (trim,
 	// resize, composite, …) run on universal sRGB pixels rather than
 	// wide-gamut source colours.
-	if o.ensureSRGB {
+	if o.ensureSRGB && needsSRGBConversion(vimg) {
 		vimg, err = vips.ICCTransform(vimg, "srgb", "srgb")
 		if err != nil {
 			return nil, err

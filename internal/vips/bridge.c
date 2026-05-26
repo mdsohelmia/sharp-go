@@ -358,6 +358,35 @@ int sharpgo_get_blob(VipsImage *in, const char *name,
 	return vips_image_get_blob(in, name, (void **)data, len);
 }
 
+int sharpgo_has_embedded_icc(VipsImage *in) {
+	return vips_image_get_typeof(in, VIPS_META_ICC_NAME) != 0 ? 1 : 0;
+}
+
+// sharpgo_icc_is_srgb reports whether the embedded ICC profile is the standard
+// sRGB IEC61966-2.1 profile, by fingerprinting fixed header fields — so a
+// conversion to sRGB is an identity and can be skipped. Adapted from imgproxy's
+// vips_icc_is_srgb_iec61966 (Apache-2.0); see NOTICE.
+int sharpgo_icc_is_srgb(VipsImage *in) {
+	const void *data = NULL;
+	size_t len = 0;
+	if (!vips_image_get_typeof(in, VIPS_META_ICC_NAME) ||
+	    vips_image_get_blob(in, VIPS_META_ICC_NAME, &data, &len))
+		return 0;
+	if (!data || len < 128) return 0;
+
+	const char *p = (const char *)data;
+	static const char date[]    = { 7, (char)206, 0, 2, 0, 9 }; // 1998-12-01
+	static const char version[] = { 2, 16, 0, 0 };              // 2.1
+
+	return (memcmp(p + 16, "RGB ", 4) == 0 && // colourspace
+	        memcmp(p + 48, "IEC ", 4) == 0 && // device manufacturer
+	        memcmp(p + 52, "sRGB", 4) == 0 && // device model
+	        memcmp(p + 80, "HP  ", 4) == 0 && // profile creator
+	        memcmp(p + 24, date, 6) == 0 &&
+	        memcmp(p + 8, version, 4) == 0)
+	    ? 1 : 0;
+}
+
 int sharpgo_gaussblur(VipsImage *in, VipsImage **out, double sigma) {
 	return vips_gaussblur(in, out, sigma, NULL);
 }
