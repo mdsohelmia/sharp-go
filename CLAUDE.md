@@ -1,7 +1,7 @@
 # sharp-go
 
 A Go port of the [sharp](https://github.com/lovell/sharp) Node.js image library,
-built on **libvips via cgo**. Module path: `github.com/sohelmia/sharp-go`, Go ≥ 1.24.
+built on **libvips via cgo**. Module path: `github.com/sohelmia/sharp-go`, Go ≥ 1.26.2.
 
 ## Goal
 
