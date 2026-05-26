@@ -37,7 +37,7 @@ func Affine(im *Image, p AffineParams) (*Image, error) {
 		C.double(p.BgR), C.double(p.BgG), C.double(p.BgB), C.double(p.BgA),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

@@ -23,3 +23,15 @@ func lastError() error {
 	}
 	return errors.New(msg)
 }
+
+// loadError returns the libvips error after a failed load/op, falling back to a
+// generic message when libvips reported failure WITHOUT setting the error
+// buffer (some loaders reject malformed input silently). Used only on the
+// failure path; it never returns nil, so callers can't mistake a failure for
+// success and dereference a nil *Image.
+func loadError() error {
+	if e := lastError(); e != nil {
+		return e
+	}
+	return errors.New("vips: operation failed")
+}

@@ -13,7 +13,7 @@ import "unsafe"
 func Tint(im *Image, r, g, b float64) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_tint(im.ptr, &out, C.double(r), C.double(g), C.double(b)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -22,7 +22,7 @@ func Tint(im *Image, r, g, b float64) (*Image, error) {
 func Greyscale(im *Image) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_greyscale(im.ptr, &out); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -31,7 +31,7 @@ func Greyscale(im *Image) (*Image, error) {
 func Colourspace(im *Image, interp Interpretation) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_colourspace(im.ptr, &out, C.int(interp)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -40,7 +40,7 @@ func Colourspace(im *Image, interp Interpretation) (*Image, error) {
 func RemoveAlpha(im *Image) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_remove_alpha(im.ptr, &out); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -50,7 +50,7 @@ func RemoveAlpha(im *Image) (*Image, error) {
 func EnsureAlpha(im *Image, alpha float64) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_ensure_alpha(im.ptr, &out, C.double(alpha)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -67,7 +67,7 @@ type ConvolveParams struct {
 // Convolve applies a 2D convolution.
 func Convolve(im *Image, p ConvolveParams) (*Image, error) {
 	if len(p.Kernel) != p.Width*p.Height {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	var out *C.VipsImage
 	rc := C.sharpgo_convolve(im.ptr, &out,
@@ -76,7 +76,7 @@ func Convolve(im *Image, p ConvolveParams) (*Image, error) {
 		C.double(p.Scale), C.double(p.Offset),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -94,7 +94,7 @@ const (
 func BooleanConst(im *Image, op BooleanOp, constant float64) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_boolean_const(im.ptr, &out, C.int(op), C.double(constant)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -102,7 +102,7 @@ func BooleanConst(im *Image, op BooleanOp, constant float64) (*Image, error) {
 // Recomb applies a band-recombination matrix (N x N).
 func Recomb(im *Image, matrix []float64, n int) (*Image, error) {
 	if len(matrix) != n*n {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	var out *C.VipsImage
 	rc := C.sharpgo_recomb(im.ptr, &out,
@@ -110,7 +110,7 @@ func Recomb(im *Image, matrix []float64, n int) (*Image, error) {
 		C.int(n),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -127,7 +127,7 @@ const (
 func Morph(im *Image, size int, mode MorphMode) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_morph(im.ptr, &out, C.int(size), C.int(mode)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -136,7 +136,7 @@ func Morph(im *Image, size int, mode MorphMode) (*Image, error) {
 func Flatten(im *Image, r, g, b float64) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_flatten(im.ptr, &out, C.double(r), C.double(g), C.double(b)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -146,7 +146,7 @@ func Clahe(im *Image, width, height, maxSlope int) (*Image, error) {
 	var out *C.VipsImage
 	rc := C.sharpgo_clahe(im.ptr, &out, C.int(width), C.int(height), C.int(maxSlope))
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -155,7 +155,7 @@ func Clahe(im *Image, width, height, maxSlope int) (*Image, error) {
 func Normalise(im *Image, lowerPct, upperPct int) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_normalise(im.ptr, &out, C.int(lowerPct), C.int(upperPct)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -168,7 +168,7 @@ func Modulate(im *Image, brightness, saturation, hueDeg, lightnessAdd float64) (
 		C.double(hueDeg), C.double(lightnessAdd),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

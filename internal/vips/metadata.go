@@ -50,7 +50,7 @@ func LoadBufferLazy(buf []byte) (*Image, error) {
 		&out,
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -233,7 +233,7 @@ func ICCTransform(im *Image, output, input string) (*Image, error) {
 	}
 	var out *C.VipsImage
 	if rc := C.sharpgo_icc_transform(im.ptr, &out, co, ci); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

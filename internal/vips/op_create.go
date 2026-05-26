@@ -29,7 +29,7 @@ func CreateSolid(p CreateSolidParams) (*Image, error) {
 		C.double(p.BgR), C.double(p.BgG), C.double(p.BgB), C.double(p.BgA),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -63,7 +63,7 @@ func CreateText(p CreateTextParams) (*Image, error) {
 		boolToC(p.RGBA),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -80,7 +80,7 @@ type ArrayJoinParams struct {
 // ArrayJoin joins multiple images into a grid `across` columns wide.
 func ArrayJoin(images []*Image, p ArrayJoinParams) (*Image, error) {
 	if len(images) == 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	ptrs := make([]*C.VipsImage, len(images))
 	for i, im := range images {
@@ -92,7 +92,7 @@ func ArrayJoin(images []*Image, p ArrayJoinParams) (*Image, error) {
 		C.double(p.BgR), C.double(p.BgG), C.double(p.BgB), C.double(p.BgA),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

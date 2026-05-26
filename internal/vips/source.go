@@ -73,7 +73,7 @@ func NewSource(r io.Reader) (*Source, error) {
 	ptr := C.sharpgo_source_new(C.uintptr_t(h))
 	if ptr == nil {
 		h.Delete()
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return &Source{h: h, sr: sr, ptr: ptr}, nil
 }
@@ -107,7 +107,7 @@ func LoadSource(src *Source) (*Image, error) {
 		if e := src.Err(); e != nil {
 			return nil, e
 		}
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -138,7 +138,7 @@ func ThumbnailSource(src *Source, p ThumbnailParams) (*Image, error) {
 		if e := src.Err(); e != nil {
 			return nil, e
 		}
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

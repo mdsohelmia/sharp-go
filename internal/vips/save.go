@@ -181,7 +181,7 @@ func SaveJPEG(im *Image, p JPEGParams) ([]byte, error) {
 		boolToC(p.ChromaSubsampling444),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -202,7 +202,7 @@ func SavePNG(im *Image, p PNGParams) ([]byte, error) {
 		C.int(p.Bitdepth),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -230,7 +230,7 @@ func SaveWebPSharpYUV(im *Image, p WebPSharpYUVParams) ([]byte, error) {
 		boolToC(p.Multithread),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return C.GoBytes(buf, C.int(size)), nil
@@ -257,7 +257,7 @@ func SaveWebP(im *Image, p WebPParams) ([]byte, error) {
 		C.int(p.Preset),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -306,7 +306,7 @@ func SaveTIFF(im *Image, p TIFFParams) ([]byte, error) {
 		boolToC(p.BigTIFF),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -327,7 +327,7 @@ func SaveHEIF(im *Image, p HEIFParams) ([]byte, error) {
 		boolToC(p.ChromaSubsample444),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -389,7 +389,7 @@ func SaveJXL(im *Image, p JXLParams) ([]byte, error) {
 		C.int(p.Bitdepth),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -408,7 +408,7 @@ func SaveJP2(im *Image, p JP2Params) ([]byte, error) {
 		boolToC(p.ChromaSubsample444),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -420,7 +420,7 @@ func SaveRaw(im *Image, format BandFormat) ([]byte, error) {
 	var size C.size_t
 	rc := C.sharpgo_rawsave_buffer(im.ptr, C.int(format), &buf, &size)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil
@@ -443,7 +443,7 @@ func SaveGIF(im *Image, p GIFParams) ([]byte, error) {
 		boolToC(p.KeepDuplicateFrames),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_free(C.gpointer(buf))
 	return copyToPooledBuf(buf, size), nil

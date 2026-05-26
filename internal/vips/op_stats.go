@@ -22,7 +22,7 @@ type BandStats struct {
 func Stats(im *Image) ([]BandStats, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_stats(im.ptr, &out); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	defer C.g_object_unref(C.gpointer(out))
 

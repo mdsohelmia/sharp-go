@@ -21,7 +21,7 @@ const (
 func Rot90(im *Image, quarter int) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_rot(im.ptr, &out, C.int(quarter)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -41,7 +41,7 @@ func Rotate(im *Image, p RotateParams) (*Image, error) {
 		C.double(p.BgR), C.double(p.BgG), C.double(p.BgB), C.double(p.BgA),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -50,7 +50,7 @@ func Rotate(im *Image, p RotateParams) (*Image, error) {
 func Flip(im *Image, d Direction) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_flip(im.ptr, &out, C.int(d)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -59,7 +59,7 @@ func Flip(im *Image, d Direction) (*Image, error) {
 func Autorot(im *Image) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_autorot(im.ptr, &out); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -69,7 +69,7 @@ func ExtractArea(im *Image, left, top, width, height int) (*Image, error) {
 	var out *C.VipsImage
 	rc := C.sharpgo_extract_area(im.ptr, &out, C.int(left), C.int(top), C.int(width), C.int(height))
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

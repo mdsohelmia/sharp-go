@@ -26,7 +26,7 @@ func LoadBuffer(buf []byte) (*Image, error) {
 		&out,
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -46,7 +46,7 @@ func LoadBufferPages(buf []byte, pages, page int) (*Image, error) {
 		&out,
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -66,7 +66,7 @@ func LoadRawBuffer(buf []byte, width, height, bands int, format BandFormat) (*Im
 		&out,
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

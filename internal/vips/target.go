@@ -45,7 +45,7 @@ func NewTarget(w io.Writer) (*Target, error) {
 		targetMu.Lock()
 		delete(targets, id)
 		targetMu.Unlock()
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return &Target{id: id, ptr: t}, nil
 }

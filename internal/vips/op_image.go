@@ -14,7 +14,7 @@ import "unsafe"
 func Gaussblur(im *Image, sigma float64) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_gaussblur(im.ptr, &out, C.double(sigma)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -39,7 +39,7 @@ func Sharpen(im *Image, p SharpenParams) (*Image, error) {
 		C.double(p.X1), C.double(p.Y2), C.double(p.Y3),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -49,7 +49,7 @@ func Gamma(im *Image, exponent, exponentOut float64) (*Image, error) {
 	var out *C.VipsImage
 	rc := C.sharpgo_gamma(im.ptr, &out, C.double(exponent), C.double(exponentOut))
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -59,7 +59,7 @@ func Gamma(im *Image, exponent, exponentOut float64) (*Image, error) {
 func Negate(im *Image, keepAlpha bool) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_negate(im.ptr, &out, boolToC(keepAlpha)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -69,7 +69,7 @@ func Negate(im *Image, keepAlpha bool) (*Image, error) {
 func Threshold(im *Image, value float64, grayscale bool) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_threshold(im.ptr, &out, C.double(value), boolToC(grayscale)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -89,7 +89,7 @@ func Linear(im *Image, a, b []float64) (*Image, error) {
 		(*C.double)(unsafe.Pointer(&b[0])), C.int(len(b)),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -98,7 +98,7 @@ func Linear(im *Image, a, b []float64) (*Image, error) {
 func Median(im *Image, size int) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_median(im.ptr, &out, C.int(size)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }

@@ -43,7 +43,7 @@ const (
 func Replicate(im *Image, width, height int) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_replicate(im.ptr, &out, C.int(width), C.int(height)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -62,7 +62,7 @@ func Composite2(base, overlay *Image, p Composite2Params) (*Image, error) {
 		C.int(p.Blend), C.int(p.X), C.int(p.Y), boolToC(p.Premultiplied),
 	)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -71,7 +71,7 @@ func Composite2(base, overlay *Image, p Composite2Params) (*Image, error) {
 func ExtractBand(im *Image, band int) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_extract_band(im.ptr, &out, C.int(band)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -79,7 +79,7 @@ func ExtractBand(im *Image, band int) (*Image, error) {
 // Bandjoin band-joins `len(images)` images. They must share width/height.
 func Bandjoin(images []*Image) (*Image, error) {
 	if len(images) == 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	ptrs := make([]*C.VipsImage, len(images))
 	for i, im := range images {
@@ -88,7 +88,7 @@ func Bandjoin(images []*Image) (*Image, error) {
 	var out *C.VipsImage
 	rc := C.sharpgo_bandjoin(&ptrs[0], C.int(len(images)), &out)
 	if rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
@@ -97,7 +97,7 @@ func Bandjoin(images []*Image) (*Image, error) {
 func Bandbool(im *Image, op BooleanOp) (*Image, error) {
 	var out *C.VipsImage
 	if rc := C.sharpgo_bandbool(im.ptr, &out, C.int(op)); rc != 0 {
-		return nil, lastError()
+		return nil, loadError()
 	}
 	return wrap(out), nil
 }
