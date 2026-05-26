@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	sharp "github.com/sohelmia/sharp-go"
+	sharp "github.com/mdsohelmia/sharp-go"
 )
 
 func main() {

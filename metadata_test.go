@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
+	sharp "github.com/mdsohelmia/sharp-go"
 )
 
 func TestMetadataJPEG(t *testing.T) {

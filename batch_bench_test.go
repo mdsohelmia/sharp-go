@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // CPU-bound (large image, heavy ops). On a 10-core M4 with libvips

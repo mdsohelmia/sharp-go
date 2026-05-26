@@ -10,8 +10,8 @@ import (
 	"context"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // ParityResizePreservesAspectWidthOnly: ported from test/unit/resize.js

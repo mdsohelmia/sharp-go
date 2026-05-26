@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sohelmia/sharp-go/format"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // FormatID is a string identifier for ToFormat. Matches sharp's accepted

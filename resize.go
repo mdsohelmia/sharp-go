@@ -3,7 +3,7 @@ package sharp
 import (
 	"errors"
 
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // ResizeOptions configures Resize. Mirrors the option object that sharp's

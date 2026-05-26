@@ -3,7 +3,7 @@ package sharp
 import (
 	"log/slog"
 
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // LogLevel mirrors the GLib log-level bits surfaced through libvips.

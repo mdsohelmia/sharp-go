@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // applyRotate maps the public RotateOptions to the internal vips ops. Uses

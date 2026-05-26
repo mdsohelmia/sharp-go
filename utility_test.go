@@ -3,7 +3,7 @@ package sharp_test
 import (
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
+	sharp "github.com/mdsohelmia/sharp-go"
 )
 
 func TestVersions(t *testing.T) {

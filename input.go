@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/sohelmia/sharp-go/format"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // FromBytes creates a new Image whose input is the given byte slice. The

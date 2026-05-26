@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/sohelmia/sharp-go/format"
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/format"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // TileLayout names the directory layout for tile output.

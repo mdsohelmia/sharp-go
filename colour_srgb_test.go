@@ -5,8 +5,8 @@ import (
 	"context"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // TestEnsureSRGBConvertsCMYK guards the sRGB-skip optimization: a CMYK source

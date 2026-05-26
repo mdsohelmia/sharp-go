@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // TestAllFixturesPipeline runs every decodable image in test/fixtures through

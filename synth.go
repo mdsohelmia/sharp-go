@@ -3,7 +3,7 @@ package sharp
 import (
 	"errors"
 
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // renderSynth materialises a synth-backed input into a *vips.Image at

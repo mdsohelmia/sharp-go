@@ -15,8 +15,8 @@ import (
 	"os"
 	"unsafe"
 
-	"github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // Formats sharp exposes via toFormat. Probed against the running libvips.

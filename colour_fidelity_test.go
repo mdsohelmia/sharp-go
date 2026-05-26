@@ -8,8 +8,8 @@ import (
 	"math"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // decodeToImage round-trips arbitrary encoded bytes to pixels by asking the

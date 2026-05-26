@@ -1,7 +1,7 @@
 package sharp
 
 import (
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // applyJoinChannel decodes each input and band-joins them with the current

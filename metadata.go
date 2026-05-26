@@ -5,7 +5,7 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // Metadata mirrors sharp.metadata().

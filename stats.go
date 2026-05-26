@@ -4,7 +4,7 @@ import (
 	"context"
 	"runtime"
 
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // Stats holds per-channel statistics computed across the full image.

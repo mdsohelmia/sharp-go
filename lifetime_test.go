@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // readOnly hides the io.Seeker that *bytes.Reader implements, forcing the

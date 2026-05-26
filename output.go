@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/sohelmia/sharp-go/format"
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/format"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // ToFile executes the pipeline and writes the result to path. If no output

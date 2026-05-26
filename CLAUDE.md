@@ -1,12 +1,12 @@
 # sharp-go
 
 A Go port of the [sharp](https://github.com/lovell/sharp) Node.js image library,
-built on **libvips via cgo**. Module path: `github.com/sohelmia/sharp-go`, Go ≥ 1.26.2.
+built on **libvips via cgo**. Module path: `github.com/mdsohelmia/sharp-go`, Go ≥ 1.26.2.
 
 ## Goal
 
 Idiomatic Go library with full sharp API parity and native-sharp performance,
-usable as `go get github.com/sohelmia/sharp-go`. The `examples/proxy` is the
+usable as `go get github.com/mdsohelmia/sharp-go`. The `examples/proxy` is the
 flagship consumer: an HTTP image-optimization proxy whose mission is to beat
 **Fastly Image Optimizer** on both file size and perceptual quality (the proxy
 dogfoods this library — improvements land here first).

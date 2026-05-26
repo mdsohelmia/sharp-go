@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // TestPerfSweep prints an encode timing matrix (width x format) at the default

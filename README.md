@@ -4,8 +4,8 @@ A Go port of [sharp](https://github.com/lovell/sharp), the Node.js
 image-processing library. Built on libvips via cgo (C API only — no C++).
 
 ```go
-import sharp "github.com/sohelmia/sharp-go"
-import "github.com/sohelmia/sharp-go/format"
+import sharp "github.com/mdsohelmia/sharp-go"
+import "github.com/mdsohelmia/sharp-go/format"
 
 data, info, err := sharp.FromFile("input.jpg").
     Resize(sharp.ResizeOptions{Width: 800, Height: 600, Fit: sharp.FitCover}).
@@ -58,7 +58,7 @@ vcpkg install vips
 ## Verify install
 
 ```sh
-go run github.com/sohelmia/sharp-go/cmd/sharpgo-doctor
+go run github.com/mdsohelmia/sharp-go/cmd/sharpgo-doctor
 ```
 
 Prints libvips version + per-format load/save support + SIMD status.
@@ -363,8 +363,8 @@ sharp-go/
 ## Command-line tools
 
 ```sh
-go install github.com/sohelmia/sharp-go/cmd/sharpgo@latest
-go install github.com/sohelmia/sharp-go/cmd/sharpgo-doctor@latest
+go install github.com/mdsohelmia/sharp-go/cmd/sharpgo@latest
+go install github.com/mdsohelmia/sharp-go/cmd/sharpgo-doctor@latest
 ```
 
 `sharpgo` is a thin CLI over the library:

@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sohelmia/sharp-go/format"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // imagePool recycles *Image handles across pipeline calls. The pool is fed

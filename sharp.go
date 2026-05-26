@@ -13,7 +13,7 @@
 package sharp
 
 import (
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // Version reports the underlying libvips version detected at init.

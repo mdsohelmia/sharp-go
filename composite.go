@@ -3,7 +3,7 @@ package sharp
 import (
 	"errors"
 
-	"github.com/sohelmia/sharp-go/internal/vips"
+	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
 // Gravity selects the overlay anchor when Top/Left are not set on a

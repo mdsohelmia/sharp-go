@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	sharp "github.com/sohelmia/sharp-go"
-	"github.com/sohelmia/sharp-go/format"
+	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
 
 // seedFixture loads a fixture from disk; used to seed fuzz corpora.
