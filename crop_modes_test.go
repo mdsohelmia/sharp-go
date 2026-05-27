@@ -40,3 +40,23 @@ func TestResizeCropModesLowHighAll(t *testing.T) {
 		}
 	}
 }
+
+// TestResizeCropModesBufferExactSize exercises the fused shrink-on-load path
+// (encoded buffer input, default FastShrinkOnLoad) with a non-square source so
+// FitCover must crop to exactly the target box. PositionAll in particular does
+// not crop inside libvips' thumbnail, so the pipeline must enforce the size.
+func TestResizeCropModesBufferExactSize(t *testing.T) {
+	ctx := context.Background()
+	src := jpegBuffer(t, 200, 100)
+	for _, pos := range []sharp.Position{sharp.PositionLow, sharp.PositionHigh, sharp.PositionAll} {
+		_, info, err := sharp.FromBytes(src).Resize(sharp.ResizeOptions{
+			Width: 50, Height: 50, Fit: sharp.FitCover, Position: pos,
+		}).ToBytes(ctx)
+		if err != nil {
+			t.Fatalf("position %d: %v", pos, err)
+		}
+		if info.Width != 50 || info.Height != 50 {
+			t.Fatalf("position %d: got %dx%d, want 50x50", pos, info.Width, info.Height)
+		}
+	}
+}

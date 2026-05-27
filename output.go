@@ -256,6 +256,12 @@ func canFuseThumbnail(o *pipelineOpts) bool {
 	if o.resize.Fit == FitCover && isEdgeGravity(o.resize.Position) {
 		return false
 	}
+	// PositionAll maps to VIPS_INTERESTING_ALL, which libvips' thumbnail does
+	// not crop — so the exact-size FitCover crop lives only in the post-decode
+	// applyResize path. Exclude it from fusion so that fixup always runs.
+	if o.resize.Fit == FitCover && o.resize.Position == PositionAll {
+		return false
+	}
 	return true
 }
 
