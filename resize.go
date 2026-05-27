@@ -137,6 +137,28 @@ func applyResize(vimg *vips.Image, r *ResizeOptions) (*vips.Image, error) {
 	if err != nil {
 		return nil, err
 	}
+	// VIPS_INTERESTING_ALL asks libvips to treat the whole frame as interesting,
+	// so it preserves the source aspect ratio (no cropping) and may return an
+	// image larger than the target box on one axis. For FitCover semantics we
+	// centre-crop any overshoot back to the exact target size.
+	if r.Fit == FitCover && r.Position == PositionAll {
+		ow, oh := out.Width(), out.Height()
+		if ow > width || oh > height {
+			x := (ow - width) / 2
+			y := (oh - height) / 2
+			cw, ch := width, height
+			if ow < cw {
+				cw = ow
+			}
+			if oh < ch {
+				ch = oh
+			}
+			out, err = vips.ExtractArea(out, x, y, cw, ch)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	return applyResizeContainPadding(out, r)
 }
 
@@ -165,6 +187,12 @@ func mapPosition(p Position) vips.Interesting {
 		return vips.InterestingEntropy
 	case PositionAttention:
 		return vips.InterestingAttention
+	case PositionLow:
+		return vips.InterestingLow
+	case PositionHigh:
+		return vips.InterestingHigh
+	case PositionAll:
+		return vips.InterestingAll
 	case PositionCentre:
 		fallthrough
 	default:

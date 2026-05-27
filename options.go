@@ -42,6 +42,13 @@ const (
 	PositionSouthWest
 	PositionWest
 	PositionNorthWest
+	// PositionLow biases the smart crop toward low-value (dark) regions.
+	// sharp-go extension: sharp's `position` exposes only entropy/attention.
+	PositionLow
+	// PositionHigh biases the smart crop toward high-value (bright) regions.
+	PositionHigh
+	// PositionAll treats the whole frame as interesting (near-centre crop).
+	PositionAll
 )
 
 // Kernel selects the resize interpolation kernel. Mirrors sharp's `kernel`
