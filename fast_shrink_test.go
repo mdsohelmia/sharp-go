@@ -54,3 +54,25 @@ func TestFastShrinkOnLoadOffProducesValidOutput(t *testing.T) {
 		t.Fatalf("width = %d, want 100", info.Width)
 	}
 }
+
+func TestFastShrinkOnLoadQualitySmoke(t *testing.T) {
+	ctx := context.Background()
+	src := jpegBuffer(t, 800, 800)
+	off := false
+	on := true
+
+	ref := sharp.FromBytes(src).Resize(sharp.ResizeOptions{Width: 200, FastShrinkOnLoad: &off})
+	cand := sharp.FromBytes(src).Resize(sharp.ResizeOptions{Width: 200, FastShrinkOnLoad: &on})
+
+	res, err := sharp.Compare(ctx, ref, cand, sharp.CompareOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Width != 200 || res.Height != 200 {
+		t.Fatalf("dims = %dx%d, want 200x200", res.Width, res.Height)
+	}
+	if res.RMSE < 0 || (res.RMSE > 0 && res.PSNR <= 0) {
+		t.Fatalf("nonsensical metrics: RMSE=%v PSNR=%v", res.RMSE, res.PSNR)
+	}
+	t.Logf("fastShrink off vs on: RMSE=%.4f PSNR=%.2f dE00mean=%.5f", res.RMSE, res.PSNR, res.DeltaE.Mean)
+}
