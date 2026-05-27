@@ -145,7 +145,13 @@ func applyResize(vimg *vips.Image, r *ResizeOptions) (*vips.Image, error) {
 		ow, oh := out.Width(), out.Height()
 		if ow > width || oh > height {
 			x := (ow - width) / 2
+			if x < 0 {
+				x = 0
+			}
 			y := (oh - height) / 2
+			if y < 0 {
+				y = 0
+			}
 			cw, ch := width, height
 			if ow < cw {
 				cw = ow
