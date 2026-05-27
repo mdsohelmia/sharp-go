@@ -142,6 +142,8 @@ func Compare(ctx context.Context, ref, cmp *Image, opts CompareOptions) (Compare
 	if err != nil {
 		return CompareResult{}, err
 	}
+	// The public DeltaEMethod constants mirror vips.DeltaE* in iota order, so
+	// the numeric cast is safe; keep the two enums in sync if either changes.
 	de, err := vips.DeltaE(rLab, cLab, vips.DeltaEMethod(opts.DeltaEMethod))
 	if err != nil {
 		return CompareResult{}, err
