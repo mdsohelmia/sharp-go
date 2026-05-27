@@ -233,6 +233,15 @@ int sharpgo_greyscale(VipsImage *in, VipsImage **out);
 // Convert colourspace by name (libvips VipsInterpretation enum).
 int sharpgo_colourspace(VipsImage *in, VipsImage **out, int interpretation);
 
+// Subtract right from left, casting both to float first so the difference is
+// signed and unclipped. Output is float. Used by the similarity-metrics API.
+int sharpgo_subtract(VipsImage *left, VipsImage *right, VipsImage **out);
+
+// CIE colour-difference between two images, producing a 1-band result.
+// method: 0=dE2000 (default), 1=dE76, 2=dECMC. libvips converts the inputs
+// to LAB internally, so any input colourspace is accepted.
+int sharpgo_delta_e(VipsImage *left, VipsImage *right, VipsImage **out, int method);
+
 // Remove the alpha channel if present.
 int sharpgo_remove_alpha(VipsImage *in, VipsImage **out);
 

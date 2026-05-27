@@ -534,6 +534,30 @@ int sharpgo_colourspace(VipsImage *in, VipsImage **out, int interpretation) {
 	return vips_colourspace(in, out, (VipsInterpretation)interpretation, NULL);
 }
 
+int sharpgo_subtract(VipsImage *left, VipsImage *right, VipsImage **out) {
+	VipsImage *lf = NULL, *rf = NULL;
+	if (vips_cast(left, &lf, VIPS_FORMAT_FLOAT, NULL)) return -1;
+	if (vips_cast(right, &rf, VIPS_FORMAT_FLOAT, NULL)) {
+		g_object_unref(lf);
+		return -1;
+	}
+	int rc = vips_subtract(lf, rf, out, NULL);
+	g_object_unref(lf);
+	g_object_unref(rf);
+	return rc;
+}
+
+int sharpgo_delta_e(VipsImage *left, VipsImage *right, VipsImage **out, int method) {
+	switch (method) {
+	case 1:
+		return vips_dE76(left, right, out, NULL);
+	case 2:
+		return vips_dECMC(left, right, out, NULL);
+	default:
+		return vips_dE00(left, right, out, NULL);
+	}
+}
+
 int sharpgo_remove_alpha(VipsImage *in, VipsImage **out) {
 	if (!vips_image_hasalpha(in)) {
 		return vips_copy(in, out, NULL);
