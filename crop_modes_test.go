@@ -5,7 +5,22 @@ import (
 	"testing"
 
 	sharp "github.com/mdsohelmia/sharp-go"
+	"github.com/mdsohelmia/sharp-go/format"
 )
+
+func TestResizeCropModesAnimated(t *testing.T) {
+	ctx := context.Background()
+	buf := readFixture(t, "rgb-with-alpha.webp") // skips if fixtures absent
+	_, info, err := sharp.FromBytes(buf).Animated().
+		Resize(sharp.ResizeOptions{Width: 32, Height: 32, Fit: sharp.FitCover, Position: sharp.PositionHigh}).
+		WebP(format.WebPOptions{}).ToBytes(ctx)
+	if err != nil {
+		t.Fatalf("animated crop: %v", err)
+	}
+	if info.Width != 32 {
+		t.Fatalf("width = %d, want 32", info.Width)
+	}
+}
 
 func TestResizeCropModesLowHighAll(t *testing.T) {
 	ctx := context.Background()
