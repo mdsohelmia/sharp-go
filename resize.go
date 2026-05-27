@@ -22,6 +22,12 @@ type ResizeOptions struct {
 	WithoutEnlargement bool
 	// WithoutReduction disables downscaling.
 	WithoutReduction bool
+
+	// FastShrinkOnLoad controls decoder shrink-on-load fusion. nil/true (the
+	// default) lets the decoder shrink on load (JPEG DCT scale, etc.) for
+	// speed. false forces a full decode followed by a post-decode resize,
+	// avoiding shrink-on-load aliasing at the cost of speed and peak memory.
+	FastShrinkOnLoad *bool
 }
 
 // Resize records a resize operation.

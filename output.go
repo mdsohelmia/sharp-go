@@ -243,6 +243,9 @@ func canFuseThumbnail(o *pipelineOpts) bool {
 	if o.resize == nil {
 		return false
 	}
+	if o.resize.FastShrinkOnLoad != nil && !*o.resize.FastShrinkOnLoad {
+		return false
+	}
 	if o.trim != nil || o.extract != nil || o.affine != nil {
 		return false
 	}
