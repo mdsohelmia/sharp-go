@@ -75,7 +75,7 @@ func cmdResize(args []string) error {
 	w := fs.Int("w", 0, "target width (0 = preserve aspect)")
 	h := fs.Int("h", 0, "target height (0 = preserve aspect)")
 	fit := fs.String("fit", "cover", "cover|contain|fill|inside|outside")
-	pos := fs.String("position", "centre", "centre|entropy|attention|north|northeast|east|southeast|south|southwest|west|northwest")
+	pos := fs.String("position", "centre", "centre|entropy|attention|low|high|all|north|northeast|east|southeast|south|southwest|west|northwest")
 	q := fs.Int("q", 80, "JPEG/WebP/AVIF quality 1-100")
 	keep := fs.Bool("keep-metadata", false, "preserve EXIF/ICC/XMP")
 	if err := fs.Parse(args); err != nil {
@@ -321,6 +321,12 @@ func parsePosition(s string) sharp.Position {
 		return sharp.PositionEntropy
 	case "attention":
 		return sharp.PositionAttention
+	case "low":
+		return sharp.PositionLow
+	case "high":
+		return sharp.PositionHigh
+	case "all":
+		return sharp.PositionAll
 	case "north", "top":
 		return sharp.PositionNorth
 	case "northeast", "topright":

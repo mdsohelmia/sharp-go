@@ -243,6 +243,9 @@ func canFuseThumbnail(o *pipelineOpts) bool {
 	if o.resize == nil {
 		return false
 	}
+	if o.resize.FastShrinkOnLoad != nil && !*o.resize.FastShrinkOnLoad {
+		return false
+	}
 	if o.trim != nil || o.extract != nil || o.affine != nil {
 		return false
 	}
@@ -251,6 +254,12 @@ func canFuseThumbnail(o *pipelineOpts) bool {
 	// which is exactly sharp's autoOrient semantics. The fused path sets
 	// NoRotate=false and clears opts.autoOrient (see loadFusedThumbnail).
 	if o.resize.Fit == FitCover && isEdgeGravity(o.resize.Position) {
+		return false
+	}
+	// PositionAll maps to VIPS_INTERESTING_ALL, which libvips' thumbnail does
+	// not crop — so the exact-size FitCover crop lives only in the post-decode
+	// applyResize path. Exclude it from fusion so that fixup always runs.
+	if o.resize.Fit == FitCover && o.resize.Position == PositionAll {
 		return false
 	}
 	return true

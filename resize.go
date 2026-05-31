@@ -22,6 +22,12 @@ type ResizeOptions struct {
 	WithoutEnlargement bool
 	// WithoutReduction disables downscaling.
 	WithoutReduction bool
+
+	// FastShrinkOnLoad controls decoder shrink-on-load fusion. nil/true (the
+	// default) lets the decoder shrink on load (JPEG DCT scale, etc.) for
+	// speed. false forces a full decode followed by a post-decode resize,
+	// avoiding shrink-on-load aliasing at the cost of speed and peak memory.
+	FastShrinkOnLoad *bool
 }
 
 // Resize records a resize operation.
@@ -137,6 +143,34 @@ func applyResize(vimg *vips.Image, r *ResizeOptions) (*vips.Image, error) {
 	if err != nil {
 		return nil, err
 	}
+	// VIPS_INTERESTING_ALL asks libvips to treat the whole frame as interesting,
+	// so it preserves the source aspect ratio (no cropping) and may return an
+	// image larger than the target box on one axis. For FitCover semantics we
+	// centre-crop any overshoot back to the exact target size.
+	if r.Fit == FitCover && r.Position == PositionAll {
+		ow, oh := out.Width(), out.Height()
+		if ow > width || oh > height {
+			x := (ow - width) / 2
+			if x < 0 {
+				x = 0
+			}
+			y := (oh - height) / 2
+			if y < 0 {
+				y = 0
+			}
+			cw, ch := width, height
+			if ow < cw {
+				cw = ow
+			}
+			if oh < ch {
+				ch = oh
+			}
+			out, err = vips.ExtractArea(out, x, y, cw, ch)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	return applyResizeContainPadding(out, r)
 }
 
@@ -165,6 +199,12 @@ func mapPosition(p Position) vips.Interesting {
 		return vips.InterestingEntropy
 	case PositionAttention:
 		return vips.InterestingAttention
+	case PositionLow:
+		return vips.InterestingLow
+	case PositionHigh:
+		return vips.InterestingHigh
+	case PositionAll:
+		return vips.InterestingAll
 	case PositionCentre:
 		fallthrough
 	default:
