@@ -16,9 +16,9 @@ data, info, err := sharp.FromFile("input.jpg").
 
 ## Status
 
-Pre-1.0. ~99% sharp API parity. Full test suite (incl. an all-fixtures format
-sweep) passing on macOS arm64 + libvips 8.18.2. Public API may shift before
-v1.0.
+v1.1.0 — stable public API under semver. ~99% sharp API parity. Test suite
+passes on macOS arm64 + libvips 8.18.2 (fixture-based tests require the upstream
+sharp fixtures — see [Test fixtures](#test-fixtures)).
 
 ## Design
 
@@ -92,9 +92,13 @@ sharp.FromBytes(pdf).Page(2)           // load specific page
 .Resize(sharp.ResizeOptions{
     Width: 800, Height: 600,
     Fit:      sharp.FitCover,           // Cover, Contain, Fill, Inside, Outside
-    Position: sharp.PositionAttention,  // Centre, Entropy, Attention, North, NorthEast, ...
+    Position: sharp.PositionAttention,  // Centre, Entropy, Attention, Low, High, All,
+                                        //   North, NorthEast, East, ... (edge gravities)
     Kernel:   sharp.KernelLanczos3,
     Background: sharp.Color{R:255,G:255,B:255,A:255}, // for FitContain
+    // FastShrinkOnLoad: &off,          // *bool; nil/true = shrink on load (fast,
+                                        //   default). false = full decode then resize
+                                        //   (higher quality, more memory).
 })
 
 .Extract(sharp.ExtractRegion{Left: 100, Top: 50, Width: 400, Height: 300})
@@ -253,6 +257,25 @@ st, err := sharp.FromFile("photo.jpg").Stats(ctx)
 // st.Channels[i].Min/Max/Mean/Deviation/Sum/SumSquare
 ```
 
+### Compare (image similarity)
+
+Native, dependency-free similarity metrics between two pipelines — useful for
+regression-testing an optimiser or comparing encoder settings. Both inputs are
+realised to pixels, normalised to sRGB, and `cmp` is auto-resized to `ref`'s
+dimensions (Lanczos3) when they differ.
+
+```go
+res, err := sharp.Compare(ctx,
+    sharp.FromFile("original.png"),
+    sharp.FromFile("original.png").Resize(sharp.ResizeOptions{Width: 800}).WebP(format.WebPOptions{Quality: 80}),
+    sharp.CompareOptions{DeltaEMethod: sharp.DeltaE2000}, // DeltaE2000 (default) | DeltaE76 | DeltaECMC
+)
+// res.RMSE   sRGB 8-bit units; 0 = identical
+// res.PSNR   dB; +Inf when identical
+// res.DeltaE.Mean / .Max   CIE colour difference (computed in LAB)
+// res.Width / res.Height   dimensions metrics were computed at (ref's)
+```
+
 ## Concurrency, cancellation, and limits
 
 ```go
@@ -335,6 +358,7 @@ sharp-go/
   with_metadata.go      WithMetadata/Exif/ICCProfile/Xmp
   metadata.go           Metadata()
   stats.go              Stats()
+  compare.go            Compare() — RMSE/PSNR/deltaE similarity metrics
   tile.go               ToTiles (DZI/Zoomify/IIIF)
   toformat.go           ToFormat dispatcher
   utility.go            V/SupportedFormats/Block/Unblock/Tracked*
