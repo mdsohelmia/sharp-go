@@ -7,7 +7,7 @@
 # save options this codebase relies on — so we build the latest stable release
 # (or a pinned version) from the upstream tarball.
 #
-# The build is C-ONLY (-Dcpp=false): sharp-go binds the libvips C API and never
+# The build is C-ONLY (-Dcplusplus=false): sharp-go binds the libvips C API and never
 # links vips-cpp, so the C++ binding, its libstdc++ dependency, and the extra
 # build time are all skipped.
 #
@@ -81,11 +81,11 @@ build_source() {
   tar -xJf "$tarball" -C "$tmp"
 
   ( cd "$tmp/vips-$ver"
-    # -Dcpp=false: build the C library only — sharp-go never links vips-cpp.
+    # -Dcplusplus=false: build the C library only — sharp-go never links vips-cpp.
     meson setup build \
       --prefix="$PREFIX" \
       --buildtype=release \
-      -Dcpp=false \
+      -Dcplusplus=false \
       -Ddeprecated=false \
       -Dintrospection=disabled \
       -Dexamples=false
