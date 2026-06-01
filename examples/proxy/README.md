@@ -32,8 +32,20 @@ go run ./examples/proxy
 | `UPSTREAM_BASE`| `https://staging.aarong.com`     | image origin                                             |
 | `FASTLY_BASE`  | `https://mcprod.aarong.com`      | Fastly Image Optimizer endpoint shown in the middle pane |
 | `DEFAULT_PATH` | `/media/catalog/product/0/5/0560000084696.jpg` | path used by `/compare` and `/metrics` when none given |
+| `VIPS_CONCURRENCY`     | `2`        | libvips worker threads per encode (1–2 recommended; the library default is 1) |
+| `MAX_INFLIGHT_ENCODES` | `NumCPU`   | cap on concurrent libvips encodes — excess requests queue instead of thrashing |
 
 Set `FASTLY_BASE=` (explicitly empty) to disable the 3rd pane and fall back to a 2-pane original-vs-sharp-go view.
+
+### Serving under load
+
+A Go HTTP server has no libuv-style threadpool, so without bounds every request
+would fan a pipeline across `VIPS_CONCURRENCY` threads at once — `N` concurrent
+requests → `N × VIPS_CONCURRENCY` threads → oversubscription thrash (100% CPU,
+collapsed throughput). The proxy gates the CPU-bound encode with a semaphore so
+total libvips threads stay ≈ `MAX_INFLIGHT_ENCODES × VIPS_CONCURRENCY`, near the
+core count. The startup log prints the resolved values and the thread ceiling.
+Origin fetches are I/O and stay ungated.
 
 ## Query params
 

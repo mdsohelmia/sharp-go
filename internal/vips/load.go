@@ -8,6 +8,7 @@ package vips
 import "C"
 
 import (
+	"bytes"
 	"errors"
 	"unsafe"
 )
@@ -29,6 +30,24 @@ func LoadBuffer(buf []byte) (*Image, error) {
 		return nil, loadError()
 	}
 	return wrap(out), nil
+}
+
+// LoadBufferSeq decodes buf lazily with the given access mode, reusing the
+// streaming Source machinery so buf stays alive for the image's lifetime
+// without a full-raster vips_image_copy_memory. AccessSequential streams the
+// decode in a single top-to-bottom pass (sharp's default) — large sources see
+// a big peak-RSS reduction versus LoadBuffer. Use LoadBuffer (random, fully
+// materialised) for pipelines that genuinely need arbitrary random access.
+func LoadBufferSeq(buf []byte, access Access) (*Image, error) {
+	if len(buf) == 0 {
+		return nil, errors.New("vips: empty input buffer")
+	}
+	src, err := NewSource(bytes.NewReader(buf))
+	if err != nil {
+		return nil, err
+	}
+	defer src.Close()
+	return LoadSourceLazy(src, access)
 }
 
 // LoadBufferPages decodes a multi-page image (animated GIF/WebP/HEIF/TIFF

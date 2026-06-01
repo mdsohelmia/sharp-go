@@ -25,6 +25,17 @@ func Concurrency() int { return vips.Concurrency() }
 // SetConcurrency sets the libvips worker thread count. n <= 0 selects NumCPU.
 func SetConcurrency(n int) { vips.SetConcurrency(n) }
 
+// ShutdownThread releases the per-thread resources libvips lazily attaches to
+// the calling OS thread (its buffer cache and thread-local error buffer).
+//
+// Terminal methods do NOT pin to an OS thread, so normal use needs no manual
+// cleanup — libvips work runs on the Go scheduler's small, reused thread pool
+// and the per-thread state is reused, not multiplied. Call this only if you
+// run libvips from your own long-lived OS thread (one you pinned with
+// runtime.LockOSThread) that is about to stop: invoke it on that thread, while
+// still locked, before unlocking. Mirrors govips' vips.ShutdownThread.
+func ShutdownThread() { vips.ThreadShutdown() }
+
 // Release returns an encoded-output slice obtained from ToBytes (or any
 // other terminal that returns []byte) to a pool for reuse. After calling
 // Release the slice must not be read or written.

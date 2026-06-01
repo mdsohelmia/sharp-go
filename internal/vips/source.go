@@ -97,6 +97,54 @@ func (s *Source) Close() {
 	}
 }
 
+// Access mirrors VipsAccess: how libvips reads the input. Sequential enables a
+// single-pass, low-memory streaming decode (and shrink-on-load where the codec
+// supports it); Random caches/materialises for out-of-order access. Sequential
+// is sharp's default.
+type Access int
+
+const (
+	AccessRandom     Access = C.VIPS_ACCESS_RANDOM
+	AccessSequential Access = C.VIPS_ACCESS_SEQUENTIAL
+)
+
+// LoadSourceLazy decodes from src WITHOUT copying pixels into memory: the
+// returned image streams from src lazily, so src (and its backing bytes) must
+// outlive the image. The Source machinery guarantees this — the image holds a
+// reference to src, so the caller may Close its own creation reference
+// immediately. Use AccessSequential for low-RSS single-pass pipelines.
+func LoadSourceLazy(src *Source, access Access) (*Image, error) {
+	var out *C.VipsImage
+	rc := C.sharpgo_load_source_lazy(src.ptr, C.int(access), &out)
+	if rc != 0 {
+		if e := src.Err(); e != nil {
+			return nil, e
+		}
+		return nil, loadError()
+	}
+	return wrap(out), nil
+}
+
+// StaySequential mirrors sharp's StaySequential. When condition holds and im is
+// a sequential-access image, it materialises im into memory so the next
+// random-access op (trim, rotate, normalise, vertical flip, EXIF auto-rotate)
+// won't read the sequential source out of order. The copy happens after any
+// upstream shrink/resize, so it materialises the smaller image. Returns im
+// unchanged when condition is false or im is already a random-access image.
+func StaySequential(im *Image, condition bool) (*Image, error) {
+	if im == nil || !condition {
+		return im, nil
+	}
+	var out *C.VipsImage
+	if rc := C.sharpgo_stay_sequential(im.ptr, &out); rc != 0 {
+		return nil, lastError()
+	}
+	if out == nil {
+		return im, nil // wasn't sequential — nothing to do
+	}
+	return wrap(out), nil
+}
+
 // LoadSource decodes an image from a streaming source. Pixel data is copied
 // into libvips-managed memory before return, so the source's creation
 // reference may be dropped (Close) immediately afterwards.

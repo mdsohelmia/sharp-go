@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/mdsohelmia/sharp-go/format"
@@ -64,12 +63,6 @@ func (im *Image) ToWriter(ctx context.Context, w io.Writer) (Info, error) {
 // streamTo runs the pipeline up to the encode step, then routes encoded
 // bytes through a VipsTarget into w.
 func (im *Image) streamTo(ctx context.Context, w io.Writer) (Info, error) {
-	// Pin to one OS thread for the whole pipeline: libvips' error buffer is
-	// thread-local, so the op that fails and the lastError() that reads it
-	// must run on the same thread, else a goroutine reschedule between cgo
-	// calls would surface a stale or empty message.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 	if im.opts.timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, im.opts.timeout)
@@ -205,7 +198,10 @@ func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, func(), er
 		if canFuseThumbnail(&opts) {
 			vimg, err = loadFusedThumbnail(buf, &opts)
 		} else {
-			vimg, err = vips.LoadBuffer(buf)
+			// Sequential streaming decode (sharp's default): single top-to-bottom
+			// pass, no full-raster copy_memory. libvips inserts caches for the
+			// rare op that needs random access.
+			vimg, err = vips.LoadBufferSeq(buf, vips.AccessSequential)
 		}
 	}
 	if err != nil {
@@ -347,10 +343,13 @@ func loadFusedThumbnail(buf []byte, opts *pipelineOpts) (*vips.Image, error) {
 // Applies all recorded ops in sharp's pipeline order and encodes to the
 // requested format.
 func execute(ctx context.Context, im *Image) ([]byte, Info, error) {
-	// See streamTo: pin to one OS thread so libvips' thread-local error buffer
-	// is read on the thread that wrote it.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	// No runtime.LockOSThread here (matching govips). Each libvips op reads the
+	// thread-local error buffer immediately after its own cgo call (see
+	// internal/vips/error.go) — including the lazy pixel work, which surfaces
+	// from the single sink/encode call — so the pipeline never needs to stay on
+	// one OS thread. Pinning per op would instead force a fresh per-thread
+	// libvips buffer cache onto every distinct M the scheduler touches, leaking
+	// RSS unbounded under concurrent load.
 	vimg, stop, err := buildPipelineImage(ctx, im)
 	if err != nil {
 		return nil, Info{}, err
@@ -399,6 +398,11 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 		}
 	}
 	if o.trim != nil {
+		// trim scans the whole image for content bounds — materialise if the
+		// load was sequential so the scan can read out of order.
+		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+			return nil, err
+		}
 		vimg, err = applyTrim(vimg, o.trim)
 		if err != nil {
 			return nil, err
@@ -412,18 +416,29 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 		}
 	}
 	if o.autoOrient {
+		// EXIF orientation ≥3 implies a rotate/transpose (random access); 0/1/2
+		// are no-op or horizontal-flip and stay sequential-safe.
+		if vimg, err = vips.StaySequential(vimg, vimg.Orientation() >= 3); err != nil {
+			return nil, err
+		}
 		vimg, err = vips.Autorot(vimg)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if o.rotate != nil {
+		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+			return nil, err
+		}
 		vimg, err = applyRotate(vimg, o.rotate)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if o.affine != nil {
+		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+			return nil, err
+		}
 		vimg, err = applyAffine(vimg, o.affine)
 		if err != nil {
 			return nil, err
@@ -461,6 +476,11 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 		}
 	}
 	if o.normalise != nil {
+		// normalise scans the whole image for its histogram min/max first, then
+		// re-reads to apply — both need random access.
+		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+			return nil, err
+		}
 		n := o.normalise
 		vimg, err = vips.Normalise(vimg, n.Lower, n.Upper)
 		if err != nil {
@@ -616,6 +636,11 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 		}
 	}
 	if o.flip {
+		// Vertical flip reverses row order → out-of-order read. (flop is a
+		// per-row horizontal reverse and stays sequential-safe.)
+		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+			return nil, err
+		}
 		vimg, err = vips.Flip(vimg, vips.DirectionVertical)
 		if err != nil {
 			return nil, err

@@ -57,8 +57,15 @@ func start() {
 		return
 	}
 
-	// Sharp defaults: no operation cache, no leak reporting, concurrency = NumCPU.
-	C.vips_concurrency_set(C.int(runtime.NumCPU()))
+	// Server-oriented defaults, matching govips. Per-op concurrency = 1: each
+	// pipeline runs single-threaded, so parallelism comes from running many
+	// pipelines (one goroutine per request) which the Go scheduler spreads over
+	// a small, reused pool of OS threads — no thread-per-core fan-out per
+	// request, no oversubscription under load. Operation cache stays OFF
+	// (unlike govips' 50 MB default): a per-image proxy almost never re-runs an
+	// identical op, so the cache would only hold stale results at a memory cost.
+	// Tune both via SetConcurrency / SetCache.
+	C.vips_concurrency_set(1)
 	C.vips_cache_set_max(0)
 	C.vips_cache_set_max_mem(0)
 	C.vips_cache_set_max_files(0)
@@ -87,6 +94,18 @@ func SetConcurrency(n int) {
 
 // Concurrency returns the current libvips worker thread count.
 func Concurrency() int { return int(C.vips_concurrency_get()) }
+
+// ThreadShutdown releases the per-thread resources libvips lazily attaches to
+// the calling OS thread (its buffer cache and thread-local error buffer).
+//
+// The library does NOT call this per operation (matching govips): terminal
+// methods no longer pin to an OS thread, so libvips work runs on the Go
+// scheduler's small, reused pool of Ms and the per-thread state is reused
+// across requests rather than multiplied per distinct thread. Call this only
+// from a goroutine that pinned itself with runtime.LockOSThread and is about
+// to stop driving libvips for good — e.g. a dedicated long-lived worker thread
+// shutting down. It is exposed publicly via sharp.ShutdownThread.
+func ThreadShutdown() { C.vips_thread_shutdown() }
 
 // SetCache configures the libvips operation cache. Zero disables.
 func SetCache(maxOps, maxFiles int, maxMem uint64) {

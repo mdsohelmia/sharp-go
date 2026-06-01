@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"runtime"
 
 	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
@@ -45,9 +44,6 @@ type CompareResult struct {
 // cmp is resized to ref's dimensions (Lanczos3) when they differ, and alpha is
 // flattened onto white when only one input carries an alpha channel.
 func Compare(ctx context.Context, ref, cmp *Image, opts CompareOptions) (CompareResult, error) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
 	if ref == nil || cmp == nil {
 		return CompareResult{}, errors.New("sharp: Compare requires non-nil images")
 	}

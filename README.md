@@ -279,8 +279,16 @@ res, err := sharp.Compare(ctx,
 ## Concurrency, cancellation, and limits
 
 ```go
-sharp.SetConcurrency(8)                                    // libvips thread count
-sharp.SetCache(maxOps, maxFiles int, maxMem uint64)        // operation cache
+// libvips per-op thread count. Default is 1 (server-friendly, matches govips):
+// each pipeline runs single-threaded and you parallelise across requests. Raise
+// it only to speed up a single large image when overall concurrency is low.
+sharp.SetConcurrency(8)
+sharp.SetCache(maxOps, maxFiles int, maxMem uint64)        // operation cache (off by default)
+
+// Free libvips' per-thread state — only needed if you drive pipelines from your
+// own long-lived goroutine pinned with runtime.LockOSThread. Normal use needs
+// nothing: terminal methods don't pin, so threads are reused, not leaked.
+sharp.ShutdownThread()
 
 // Batch terminal calls with bounded worker pool. Each *Image is independent;
 // distinct *Image values are safe to evaluate concurrently. Results are
@@ -301,9 +309,10 @@ results := sharp.ToBytesAll(ctx, images, sharp.BatchOptions{
 
 // Tuning note: total CPU pressure is roughly
 //   BatchOptions.Concurrency × sharp.Concurrency()
-// For CPU-bound resize/encode workloads, setting libvips to 1
-// (sharp.SetConcurrency(1)) and using a Go-side pool sized to
-// runtime.NumCPU() often beats the inverse — try both.
+// libvips concurrency now defaults to 1, so a Go-side pool sized to
+// runtime.NumCPU() (or BatchOptions.Concurrency) keeps every core busy with no
+// oversubscription. Raise sharp.SetConcurrency only when you process few images
+// at a time and want intra-image parallelism.
 
 // Per-call ctx cancellation aborts at the next libvips checkpoint.
 ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -340,7 +349,7 @@ sharp.TrackedFiles()  // libvips-tracked file descriptors
 
 ```
 sharp-go/
-  sharp.go              version, concurrency
+  sharp.go              version, concurrency, ShutdownThread
   image.go              *Image type, pipelineOpts
   input.go              FromBytes/File/Reader, Animated/Pages/Page
   output.go             ToBytes/File/Writer, execute()

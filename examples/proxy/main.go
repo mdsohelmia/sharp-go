@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,6 +56,15 @@ var (
 	//   OUTPUT_CACHE       set to "off" to disable
 	// Shares ORIGIN_CACHE_TTL.
 	outCache *originCache
+
+	// encodeSem bounds concurrent libvips encodes — the CPU-bound work. A Go
+	// HTTP server has no libuv-style threadpool, so without this every request
+	// would launch a pipeline that fans out across VIPS_CONCURRENCY worker
+	// threads at once; N concurrent misses → N × VIPS_CONCURRENCY threads →
+	// oversubscription thrash (100% CPU, collapsed throughput). Sized at init
+	// (MAX_INFLIGHT_ENCODES, default NumCPU) so total libvips threads stay
+	// ≈ inflight × VIPS_CONCURRENCY, near the core count.
+	encodeSem chan struct{}
 )
 
 func envOr(k, def string) string {
@@ -79,6 +89,18 @@ func main() {
 		log.Fatalf("invalid UPSTREAM_BASE: %v", err)
 	}
 	upstreamHost = u.Host
+
+	// CPU governor. sharp-go defaults libvips concurrency to NumCPU (matching
+	// sharp/Node, which is only safe there because libuv caps concurrent ops to
+	// ~4). Go has no such cap, so we (a) lower per-op vips concurrency and
+	// (b) bound in-flight encodes. Their product is the total libvips thread
+	// ceiling — keep it near NumCPU to avoid the oversubscription that pegs CPU.
+	vipsConc := clampInt(os.Getenv("VIPS_CONCURRENCY"), 1, 1024, 2)
+	sharp.SetConcurrency(vipsConc)
+	maxInflight := clampInt(os.Getenv("MAX_INFLIGHT_ENCODES"), 1, 100000, runtime.NumCPU())
+	encodeSem = make(chan struct{}, maxInflight)
+	log.Printf("cpu governor: vips_concurrency=%d max_inflight_encodes=%d (NumCPU=%d, thread_ceiling≈%d)",
+		vipsConc, maxInflight, runtime.NumCPU(), vipsConc*maxInflight)
 
 	originDir := envOr("ORIGIN_CACHE_DIR", filepath.Join(os.TempDir(), "sharp-proxy-cache"))
 	ttl, err := time.ParseDuration(envOr("ORIGIN_CACHE_TTL", "1h"))
@@ -284,6 +306,22 @@ func proxyFastly(w http.ResponseWriter, r *http.Request, path string) {
 	io.Copy(w, resp.Body)
 }
 
+// acquireEncode blocks until a libvips encode slot is free or the request is
+// cancelled. This is the request-level backpressure that bounds total CPU:
+// excess concurrent requests queue here instead of all launching pipelines at
+// once. A client that disconnects while queued frees its place via ctx.
+func acquireEncode(ctx context.Context) error {
+	select {
+	case encodeSem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// releaseEncode frees a slot taken by acquireEncode.
+func releaseEncode() { <-encodeSem }
+
 func proxyOptimize(w http.ResponseWriter, r *http.Request, path string) {
 	entry, hit, err := fetchOriginBytes(r.Context(), path, r.Header.Get("accept"), r.Header.Get("user-agent"))
 	if err != nil {
@@ -390,7 +428,14 @@ func proxyOptimize(w http.ResponseWriter, r *http.Request, path string) {
 
 	pipe = applyEncoder(pipe, out, tune)
 
+	// Gate the CPU-bound decode+encode. The origin fetch above is I/O and
+	// stays ungated; only this libvips work counts against the thread ceiling.
+	if err := acquireEncode(r.Context()); err != nil {
+		// Client disconnected while queued — nothing to send.
+		return
+	}
 	buf, _, err := pipe.ToBytes(r.Context())
+	releaseEncode()
 	if err != nil {
 		log.Printf("encode error path=%s fmt=%s err=%v", path, out, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
