@@ -14,3 +14,4 @@ func VersionString() string      { return "0.0.0" }
 func SetConcurrency(int)         {}
 func Concurrency() int           { return 0 }
 func SetCache(int, int, uint64)  {}
+func ThreadShutdown()            {}

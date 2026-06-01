@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Concurrency + memory (govips parity)
+
+- **libvips concurrency now defaults to 1** (was `NumCPU`). Sharp's `NumCPU`
+  default is only safe behind Node's libuv threadpool; a Go server has no such
+  cap, so `NumCPU` per op × unbounded request goroutines oversubscribed the CPU
+  (100% CPU, collapsed throughput). Parallelism now comes from running many
+  single-threaded pipelines. Tune with `SetConcurrency`.
+- **No per-op `runtime.LockOSThread`** in terminal methods. Errors are read from
+  the thread-local buffer immediately after each cgo op (as govips does), so
+  pinning is unnecessary — and pinning per op leaked libvips' per-thread buffer
+  cache onto every distinct OS thread (unbounded RSS under load). Removed.
+- **`sharp.ShutdownThread()`** exposed for code that drives libvips from its own
+  long-lived, self-pinned OS thread (mirrors govips' `vips.ShutdownThread`).
+  Never auto-called.
+- **Lazy sequential decode** for non-fused pipelines: `vips_image_new_from_source`
+  + `VIPS_ACCESS_SEQUENTIAL` instead of `vips_image_copy_memory`, matching
+  sharp's default. A `StaySequential` guard (port of sharp's) materialises the
+  already-shrunk image only before a random-access op (trim, normalise, EXIF
+  auto-rotate, rotate, affine, vertical flip). Lower per-image peak RSS for
+  full-res JPEG/PNG conversion (~3× in the single-image A/B); WebP/AVIF buffer
+  the whole frame so the win there is smaller. No correctness change (full
+  parity suite green).
+- **`examples/proxy` CPU governor**: `VIPS_CONCURRENCY` (default 2) +
+  `MAX_INFLIGHT_ENCODES` (default `NumCPU`) bound concurrent encodes with a
+  semaphore so total libvips threads stay near the core count under load.
+
 ### v0.8 — batch concurrency
 
 - **Batch terminal calls**: `ToBytesAll(ctx, images, opts)`,

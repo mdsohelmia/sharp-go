@@ -465,6 +465,17 @@ void sharpgo_source_unref(VipsSource *src);
 // memory before return; the Go reader may be released afterwards.
 int sharpgo_load_source(VipsSource *src, VipsImage **out);
 
+// Lazy load from a VipsSource: no copy_memory, so the image streams from src on
+// demand. access is a VipsAccess (VIPS_ACCESS_SEQUENTIAL for single-pass,
+// low-RSS decode). src must outlive the image — the image holds a reference.
+int sharpgo_load_source_lazy(VipsSource *src, int access, VipsImage **out);
+
+// Materialise a sequential-access image into memory (clearing the SEQUENTIAL
+// flag) so a downstream random-access op can read it out of order. Mirrors
+// sharp's StaySequential. *out is a new owned image only when a copy was made;
+// otherwise *out is NULL and the caller keeps using `in`.
+int sharpgo_stay_sequential(VipsImage *in, VipsImage **out);
+
 // Fused load + thumbnail directly from a VipsSource. Activates shrink-on-load
 // like sharpgo_thumbnail_buffer but consumes bytes from the streaming source.
 // The result is a lazy pipeline that reads from src on demand, so src must

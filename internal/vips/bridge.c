@@ -1115,6 +1115,38 @@ int sharpgo_load_source(VipsSource *src, VipsImage **out) {
 	return 0;
 }
 
+// sharpgo_load_source_lazy loads WITHOUT vips_image_copy_memory: the returned
+// image streams pixels from src on demand. With access=VIPS_ACCESS_SEQUENTIAL
+// libvips decodes in a single top-to-bottom pass (shrink-on-load where the
+// codec supports it), so the full decoded raster is never materialised — the
+// big peak-RSS win over the copy_memory loaders. src must outlive the image;
+// the Go Source machinery guarantees that (the image refs the source).
+int sharpgo_load_source_lazy(VipsSource *src, int access, VipsImage **out) {
+	VipsImage *im = vips_image_new_from_source(
+	    src, "", "access", (VipsAccess) access, NULL);
+	if (im == NULL) return -1;
+	*out = im;
+	return 0;
+}
+
+// sharpgo_stay_sequential mirrors sharp's StaySequential. If `in` is a
+// sequential-access image, it materialises into memory (vips_image_copy_memory)
+// and clears the SEQUENTIAL flag, so a downstream random-access op (trim,
+// rotate, normalise, vertical flip, EXIF auto-rotate) can read it out of order.
+// The copy happens at the point of need — after any upstream shrink/resize — so
+// it materialises the smaller image, not the full source. *out is set to a new
+// owned image only when a copy was made; otherwise *out stays NULL and the
+// caller keeps using `in` unchanged.
+int sharpgo_stay_sequential(VipsImage *in, VipsImage **out) {
+	*out = NULL;
+	if (!vips_image_is_sequential(in)) return 0;
+	VipsImage *mem = vips_image_copy_memory(in);
+	if (mem == NULL) return -1;
+	vips_image_remove(mem, VIPS_META_SEQUENTIAL);
+	*out = mem;
+	return 0;
+}
+
 int sharpgo_thumbnail_source(
     VipsSource *src,
     int width, int height,
