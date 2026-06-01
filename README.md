@@ -16,7 +16,7 @@ data, info, err := sharp.FromFile("input.jpg").
 
 ## Status
 
-v1.1.0 — stable public API under semver. ~99% sharp API parity. Test suite
+v1.2.0 — stable public API under semver. ~99% sharp API parity. Test suite
 passes on macOS arm64 + libvips 8.18.2 (fixture-based tests require the upstream
 sharp fixtures — see [Test fixtures](#test-fixtures)).
 

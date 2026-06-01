@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.0 — 2026-06-02
 
 ### Concurrency + memory (govips parity)
 
@@ -27,6 +27,8 @@
 - **`examples/proxy` CPU governor**: `VIPS_CONCURRENCY` (default 2) +
   `MAX_INFLIGHT_ENCODES` (default `NumCPU`) bound concurrent encodes with a
   semaphore so total libvips threads stay near the core count under load.
+
+## Pre-1.0 development log
 
 ### v0.8 — batch concurrency
 
