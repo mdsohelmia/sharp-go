@@ -112,9 +112,16 @@ proxy:
 .PHONY: deps-help
 deps-help:
 	@echo "macOS:          brew install vips pkg-config"
-	@echo "Debian/Ubuntu:  sudo apt install libvips-dev pkg-config"
+	@echo "Debian/Ubuntu:  sudo apt install libvips-dev pkg-config   # WARNING: apt ships 8.15, too old (need >= 8.16)"
 	@echo "Alpine:         apk add vips-dev pkgconf"
 	@echo "Windows:        vcpkg install vips"
+	@echo ""
+	@echo "Ubuntu (build latest >= 8.16 from source): make install-libvips"
+
+## install-libvips: build + install the latest libvips (>= 8.16) from source (Ubuntu)
+.PHONY: install-libvips
+install-libvips:
+	./scripts/install-libvips.sh
 
 ## clean: remove build artifacts and the coverage profile
 .PHONY: clean
