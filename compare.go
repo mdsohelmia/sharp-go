@@ -57,12 +57,16 @@ func Compare(ctx context.Context, ref, cmp *Image, opts CompareOptions) (Compare
 		return CompareResult{}, err
 	}
 
-	rImg, rStop, err := buildPipelineImage(ctx, ref, false)
+	// Random-access decode: Compare realizes each source to pixels and reads it
+	// more than once (RMSE subtract, then LAB deltaE) and runs whole-image stats
+	// — none of which a single-pass sequential decode can serve. Sequential here
+	// fails with "out of order read at line <height>".
+	rImg, rStop, err := buildPipelineImage(ctx, ref, true)
 	if err != nil {
 		return CompareResult{}, err
 	}
 	defer rStop()
-	cImg, cStop, err := buildPipelineImage(ctx, cmp, false)
+	cImg, cStop, err := buildPipelineImage(ctx, cmp, true)
 	if err != nil {
 		return CompareResult{}, err
 	}
