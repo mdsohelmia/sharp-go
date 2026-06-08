@@ -57,12 +57,12 @@ func Compare(ctx context.Context, ref, cmp *Image, opts CompareOptions) (Compare
 		return CompareResult{}, err
 	}
 
-	rImg, rStop, err := buildPipelineImage(ctx, ref)
+	rImg, rStop, err := buildPipelineImage(ctx, ref, false)
 	if err != nil {
 		return CompareResult{}, err
 	}
 	defer rStop()
-	cImg, cStop, err := buildPipelineImage(ctx, cmp)
+	cImg, cStop, err := buildPipelineImage(ctx, cmp, false)
 	if err != nil {
 		return CompareResult{}, err
 	}

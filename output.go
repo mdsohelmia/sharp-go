@@ -71,7 +71,9 @@ func (im *Image) streamTo(ctx context.Context, w io.Writer) (Info, error) {
 	if err := ctx.Err(); err != nil {
 		return Info{}, err
 	}
-	vimg, stop, err := buildPipelineImage(ctx, im)
+	// Streaming sinks write directly into w, so a failed pass may have already
+	// emitted bytes — it cannot be retried. Use the sequential default.
+	vimg, stop, err := buildPipelineImage(ctx, im, false)
 	if err != nil {
 		return Info{}, err
 	}
@@ -145,7 +147,7 @@ func formatFromExt(path string) formatID {
 // fusing the decode and resize steps so shrink-on-load engages (JPEG DCT
 // scale, PNG/WebP/HEIF native subsample). The Resize and (optionally) the
 // sRGB transform are marked consumed before applyAllOps sees them.
-func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, func(), error) {
+func buildPipelineImage(ctx context.Context, im *Image, forceRandom bool) (*vips.Image, func(), error) {
 	noStop := func() {}
 	if err := vips.InitError(); err != nil {
 		return nil, noStop, err
@@ -195,9 +197,17 @@ func buildPipelineImage(ctx context.Context, im *Image) (*vips.Image, func(), er
 		if rerr != nil {
 			return nil, noStop, rerr
 		}
-		if canFuseThumbnail(&opts) {
+		switch {
+		case forceRandom:
+			// Recovery decode: a prior sequential attempt hit an "out of order
+			// read" (interlaced PNG, or a stricter/older libvips). A full
+			// random-access decode materialises the whole raster, so no op can
+			// read out of order. Fusion is skipped because vips_thumbnail is also
+			// a lazy/streaming source.
+			vimg, err = vips.LoadBuffer(buf)
+		case canFuseThumbnail(&opts):
 			vimg, err = loadFusedThumbnail(buf, &opts)
-		} else {
+		default:
 			// Sequential streaming decode (sharp's default): single top-to-bottom
 			// pass, no full-raster copy_memory. libvips inserts caches for the
 			// rare op that needs random access.
@@ -342,7 +352,26 @@ func loadFusedThumbnail(buf []byte, opts *pipelineOpts) (*vips.Image, error) {
 // execute is the single pipeline entry — terminal methods funnel through it.
 // Applies all recorded ops in sharp's pipeline order and encodes to the
 // requested format.
+//
+// The default decode streams the source sequentially (low RSS). On inputs that
+// a sequential decode cannot serve in order — an interlaced PNG, or a
+// stricter/older libvips that rejects a forward skip — the lazy sink fails with
+// "out of order read". When that happens, the pipeline is re-run once with a
+// full random-access decode, which materialises the raster and cannot fail that
+// way. Only re-readable inputs (bytes/file/raw/synth) can retry; a streaming
+// reader is consumed on first use (and already decodes random), so it is left
+// to surface its own error.
 func execute(ctx context.Context, im *Image) ([]byte, Info, error) {
+	data, info, err := executeOnce(ctx, im, false)
+	if isOutOfOrderErr(err) && im.canRetryRandom() {
+		data, info, err = executeOnce(ctx, im, true)
+	}
+	return data, info, err
+}
+
+// executeOnce runs one full pass of the pipeline (load → ops → encode).
+// forceRandom selects a random-access decode instead of the sequential default.
+func executeOnce(ctx context.Context, im *Image, forceRandom bool) ([]byte, Info, error) {
 	// No runtime.LockOSThread here (matching govips). Each libvips op reads the
 	// thread-local error buffer immediately after its own cgo call (see
 	// internal/vips/error.go) — including the lazy pixel work, which surfaces
@@ -350,7 +379,7 @@ func execute(ctx context.Context, im *Image) ([]byte, Info, error) {
 	// one OS thread. Pinning per op would instead force a fresh per-thread
 	// libvips buffer cache onto every distinct M the scheduler touches, leaking
 	// RSS unbounded under concurrent load.
-	vimg, stop, err := buildPipelineImage(ctx, im)
+	vimg, stop, err := buildPipelineImage(ctx, im, forceRandom)
 	if err != nil {
 		return nil, Info{}, err
 	}
