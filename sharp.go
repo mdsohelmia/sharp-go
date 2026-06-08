@@ -13,6 +13,8 @@
 package sharp
 
 import (
+	"runtime/debug"
+
 	"github.com/mdsohelmia/sharp-go/internal/vips"
 )
 
@@ -44,3 +46,35 @@ func ShutdownThread() { vips.ThreadShutdown() }
 // reclaimed by GC eventually. For high-throughput servers, recycling via
 // Release eliminates the per-request encoder allocation entirely.
 func Release(b []byte) { vips.ReleaseEncBuf(b) }
+
+// FreeMemory returns process memory to the OS. It runs a Go GC and releases
+// unused Go-heap spans (debug.FreeOSMemory), then asks the C allocator to give
+// back its free arenas (glibc malloc_trim; a no-op on musl and macOS).
+//
+// For a cgo image pipeline the C heap dominates RSS, and after libvips frees a
+// buffer glibc tends to keep it on a per-arena free list rather than returning
+// it — so RSS stays high under sustained load even though nothing is leaked
+// (libvips' own tracked memory returns to baseline; see TrackedMem). Servers
+// processing a high volume should call FreeMemory on a periodic ticker
+// (imgproxy uses ~10s), NOT per request: it forces a full GC and heap walk,
+// which is far too costly on the hot path.
+//
+// The single biggest steady-state-RSS lever is upstream of this call: set
+// MALLOC_ARENA_MAX=2 in the environment (or LD_PRELOAD jemalloc/tcmalloc) to
+// stop glibc from fragmenting across many arenas under concurrency.
+func FreeMemory() {
+	debug.FreeOSMemory()
+	vips.TrimMemory()
+}
+
+// LimitMallocArenas caps how many memory arenas the C allocator (glibc) creates.
+// glibc defaults to 8×NumCPU arenas; under many concurrent libvips pipelines
+// that fragments and inflates RSS. Capping to a small number — imgproxy uses 2
+// — is the single biggest, cheapest steady-state-RSS win for a high-volume
+// image service.
+//
+// Call once at startup, before serving load. Returns true when applied (glibc),
+// false on musl/macOS where there are no per-CPU arenas to cap. Equivalent to
+// setting MALLOC_ARENA_MAX=2 in the environment, but self-contained so it works
+// without controlling the deployment image.
+func LimitMallocArenas(n int) bool { return vips.LimitMallocArenas(n) }

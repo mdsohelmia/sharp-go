@@ -132,6 +132,20 @@ func HasOperation(name string) bool {
 	return C.vips_type_find(base, cs) != 0
 }
 
+// TrimMemory asks the C allocator to return free heap memory to the OS (glibc
+// malloc_trim; a no-op on musl and macOS). libvips frees its buffers back to
+// the allocator, which may keep them on per-arena free lists — inflating RSS
+// under sustained load even though nothing is leaked. Call periodically (e.g.
+// on a ~10s ticker), never per request. Surfaced publicly via sharp.FreeMemory.
+func TrimMemory() { C.sharpgo_malloc_trim() }
+
+// LimitMallocArenas caps the number of glibc malloc arenas (mallopt
+// M_ARENA_MAX). glibc defaults to 8*NumCPU arenas, which fragment and inflate
+// RSS under concurrent pipelines; capping to a small value (imgproxy uses 2) is
+// a large, cheap RSS win. Call once at startup, before heavy load. Returns true
+// on glibc when applied; false on musl/macOS (no arenas to cap) or on error.
+func LimitMallocArenas(n int) bool { return C.sharpgo_malloc_arena_max(C.int(n)) != 0 }
+
 // TrackedMem returns libvips' currently-tracked allocated memory in bytes.
 // Useful for leak tests — should return to baseline after pipeline runs +
 // runtime.GC.

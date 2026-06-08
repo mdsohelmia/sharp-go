@@ -41,6 +41,9 @@ func (im *Image) Stats(ctx context.Context) (Stats, error) {
 	if err != nil {
 		return Stats{}, err
 	}
+	// Free the fully-decoded raster at end-of-call rather than waiting for the
+	// GC finalizer (the govips model; see vips.Image.Close).
+	defer vimg.Close()
 
 	bands, err := vips.Stats(vimg)
 	if err != nil {

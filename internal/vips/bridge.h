@@ -10,6 +10,13 @@
 #include <vips/vips.h>
 #include <vips/connection.h>
 
+// Return free heap memory to the OS (glibc malloc_trim; no-op on musl/macOS).
+void sharpgo_malloc_trim(void);
+
+// Cap the number of glibc malloc arenas (no-op on musl/macOS). Returns 1 on
+// success, 0 otherwise.
+int sharpgo_malloc_arena_max(int n);
+
 // Load any supported image from an in-memory buffer with auto format detection.
 // The pixel data is fully decoded and copied to libvips-managed memory so the
 // caller's buffer may be freed immediately on return.

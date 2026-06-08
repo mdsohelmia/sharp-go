@@ -2,6 +2,35 @@
 #include "bridge.h"
 #include <webp/encode.h>
 #include <string.h>
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
+
+// sharpgo_malloc_trim asks the C allocator to return free heap memory to the
+// OS. libvips frees its buffers back to the allocator, but glibc keeps them on
+// per-arena free lists, inflating RSS under sustained load; malloc_trim hands
+// that back. glibc-only — a no-op on musl and macOS, so the symbol always links
+// and the call is safe everywhere. Pair with MALLOC_ARENA_MAX=2 (or a jemalloc
+// LD_PRELOAD) in deployment, which is the imgproxy production recipe.
+void sharpgo_malloc_trim(void) {
+#if defined(__GLIBC__)
+	malloc_trim(0);
+#endif
+}
+
+// sharpgo_malloc_arena_max caps the number of malloc arenas glibc creates.
+// glibc defaults to 8*nCPU arenas; under many concurrent libvips pipelines that
+// fragments badly and inflates RSS. Capping to a small number (imgproxy uses 2)
+// is the single biggest cheap RSS win. Returns 1 on success, 0 on failure or
+// non-glibc (musl/macOS, where there are no per-CPU arenas to cap).
+int sharpgo_malloc_arena_max(int n) {
+#if defined(__GLIBC__)
+	return mallopt(M_ARENA_MAX, n);
+#else
+	(void)n;
+	return 0;
+#endif
+}
 
 int sharpgo_load_buffer(const void *buf, size_t len, VipsImage **out) {
 	VipsImage *im = vips_image_new_from_buffer(buf, len, "", NULL);

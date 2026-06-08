@@ -78,6 +78,9 @@ func (im *Image) streamTo(ctx context.Context, w io.Writer) (Info, error) {
 		return Info{}, err
 	}
 	defer stop()
+	// loaded is the image the ctx watcher (stop) holds; applyWithMetadata may
+	// replace vimg with an ICC-converted copy, leaving loaded distinct.
+	loaded := vimg
 	if im.opts.withMetadata != nil || im.opts.withExif != nil ||
 		im.opts.withICCProfile != nil || im.opts.withXmp != nil {
 		vimg, err = applyWithMetadata(vimg, &im.opts)
@@ -93,25 +96,37 @@ func (im *Image) streamTo(ctx context.Context, w io.Writer) (Info, error) {
 	}
 	defer t.Close()
 
+	var info Info
 	switch im.opts.formatOut {
 	case formatJPEG:
 		if err := vips.SaveJPEGTarget(vimg, t, jpegParamsFrom(im.opts.jpeg)); err != nil {
 			return Info{}, err
 		}
-		return Info{
+		info = Info{
 			Format: "jpeg", Width: vimg.Width(), Height: vimg.Height(),
 			Channels: vimg.Bands(),
-		}, nil
+		}
 	case formatPNG:
 		if err := vips.SavePNGTarget(vimg, t, pngParamsFrom(im.opts.png)); err != nil {
 			return Info{}, err
 		}
-		return Info{
+		info = Info{
 			Format: "png", Width: vimg.Width(), Height: vimg.Height(),
 			Channels: vimg.Bands(),
-		}, nil
+		}
+	default:
+		return Info{}, errors.New("sharp: streamTo unreachable")
 	}
-	return Info{}, errors.New("sharp: streamTo unreachable")
+
+	// The sink ran synchronously into the target, so the lazy pipeline is fully
+	// computed. Cancel the ctx watcher before freeing — after stop() returns no
+	// Kill() can fire on a freed image — then drop our references (govips model).
+	stop()
+	vimg.Close()
+	if loaded != vimg {
+		loaded.Close()
+	}
+	return info, nil
 }
 
 func formatFromExt(path string) formatID {
@@ -385,6 +400,9 @@ func executeOnce(ctx context.Context, im *Image, forceRandom bool) ([]byte, Info
 	}
 	defer stop()
 
+	// loaded is the image the ctx watcher (stop) holds; applyWithMetadata may
+	// replace vimg with an ICC-converted copy, leaving loaded distinct.
+	loaded := vimg
 	if im.opts.withMetadata != nil || im.opts.withExif != nil ||
 		im.opts.withICCProfile != nil || im.opts.withXmp != nil {
 		vimg, err = applyWithMetadata(vimg, &im.opts)
@@ -394,7 +412,19 @@ func executeOnce(ctx context.Context, im *Image, forceRandom bool) ([]byte, Info
 	}
 	vips.ApplyKeep(vimg, vips.KeepFlags(im.opts.keepFlags))
 
-	return encodePipeline(vimg, im)
+	out, info, err := encodePipeline(vimg, im)
+
+	// The encode (sink) ran synchronously, so the lazy pipeline is fully
+	// computed and nothing reads through these images again. Cancel the ctx
+	// watcher first — after stop() returns, no Kill() can fire on a freed
+	// image — then drop our references so the whole graph is freed now rather
+	// than at the next GC (the govips model; see vips.Image.Close).
+	stop()
+	vimg.Close()
+	if loaded != vimg {
+		loaded.Close()
+	}
+	return out, info, err
 }
 
 // needsSRGBConversion reports whether converting im to sRGB would actually
@@ -410,6 +440,18 @@ func needsSRGBConversion(im *vips.Image) bool {
 	}
 	// No embedded profile: skip only when already tagged sRGB.
 	return im.Interpretation() != vips.InterpretationSRGB
+}
+
+// freeIfMaterialised closes the StaySequential output when it differs from its
+// input — i.e. when StaySequential copy_memory'd a full-raster intermediate.
+// Called only after the consuming op (rotate/trim/normalise/…) has produced its
+// output, which holds a libvips reference on seq; dropping our binding
+// reference here lets that raster be freed at the final cascade rather than
+// lingering until the next GC. Mirrors govips' per-op setImage free.
+func freeIfMaterialised(in, seq *vips.Image) {
+	if seq != in {
+		seq.Close()
+	}
 }
 
 // applyAllOps runs every recorded operation in sharp's pipeline order against
@@ -429,13 +471,16 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 	if o.trim != nil {
 		// trim scans the whole image for content bounds — materialise if the
 		// load was sequential so the scan can read out of order.
-		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+		in := vimg
+		if vimg, err = vips.StaySequential(in, true); err != nil {
 			return nil, err
 		}
-		vimg, err = applyTrim(vimg, o.trim)
+		seq := vimg
+		vimg, err = applyTrim(seq, o.trim)
 		if err != nil {
 			return nil, err
 		}
+		freeIfMaterialised(in, seq)
 	}
 	if o.extract != nil {
 		r := o.extract
@@ -447,31 +492,40 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 	if o.autoOrient {
 		// EXIF orientation ≥3 implies a rotate/transpose (random access); 0/1/2
 		// are no-op or horizontal-flip and stay sequential-safe.
-		if vimg, err = vips.StaySequential(vimg, vimg.Orientation() >= 3); err != nil {
+		in := vimg
+		if vimg, err = vips.StaySequential(in, in.Orientation() >= 3); err != nil {
 			return nil, err
 		}
-		vimg, err = vips.Autorot(vimg)
+		seq := vimg
+		vimg, err = vips.Autorot(seq)
 		if err != nil {
 			return nil, err
 		}
+		freeIfMaterialised(in, seq)
 	}
 	if o.rotate != nil {
-		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+		in := vimg
+		if vimg, err = vips.StaySequential(in, true); err != nil {
 			return nil, err
 		}
-		vimg, err = applyRotate(vimg, o.rotate)
+		seq := vimg
+		vimg, err = applyRotate(seq, o.rotate)
 		if err != nil {
 			return nil, err
 		}
+		freeIfMaterialised(in, seq)
 	}
 	if o.affine != nil {
-		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+		in := vimg
+		if vimg, err = vips.StaySequential(in, true); err != nil {
 			return nil, err
 		}
-		vimg, err = applyAffine(vimg, o.affine)
+		seq := vimg
+		vimg, err = applyAffine(seq, o.affine)
 		if err != nil {
 			return nil, err
 		}
+		freeIfMaterialised(in, seq)
 	}
 	if o.resize != nil {
 		vimg, err = applyResize(vimg, o.resize)
@@ -507,14 +561,17 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 	if o.normalise != nil {
 		// normalise scans the whole image for its histogram min/max first, then
 		// re-reads to apply — both need random access.
-		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+		in := vimg
+		if vimg, err = vips.StaySequential(in, true); err != nil {
 			return nil, err
 		}
+		seq := vimg
 		n := o.normalise
-		vimg, err = vips.Normalise(vimg, n.Lower, n.Upper)
+		vimg, err = vips.Normalise(seq, n.Lower, n.Upper)
 		if err != nil {
 			return nil, err
 		}
+		freeIfMaterialised(in, seq)
 	}
 	if o.clahe != nil {
 		c := o.clahe
@@ -667,13 +724,16 @@ func applyAllOps(vimg *vips.Image, o *pipelineOpts) (*vips.Image, error) {
 	if o.flip {
 		// Vertical flip reverses row order → out-of-order read. (flop is a
 		// per-row horizontal reverse and stays sequential-safe.)
-		if vimg, err = vips.StaySequential(vimg, true); err != nil {
+		in := vimg
+		if vimg, err = vips.StaySequential(in, true); err != nil {
 			return nil, err
 		}
-		vimg, err = vips.Flip(vimg, vips.DirectionVertical)
+		seq := vimg
+		vimg, err = vips.Flip(seq, vips.DirectionVertical)
 		if err != nil {
 			return nil, err
 		}
+		freeIfMaterialised(in, seq)
 	}
 	if o.flop {
 		vimg, err = vips.Flip(vimg, vips.DirectionHorizontal)
